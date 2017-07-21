@@ -451,6 +451,9 @@ beginfig(4);
   label.llft (btex ${\bf d}_3$ etex, d[3]);
   label.lft  (btex ${\bf d}_4$ etex, d[4]);
 
+  label.urt  (btex ${\bf d}_+$ etex, b1);
+  label.ulft (btex ${\bf d}_-$ etex, b14);
+
   label.bot  (btex ${\bf p}_0={\bf p}_5$ etex, b[0] shifted (0,-.05u));
 
   pair offsetv;
@@ -480,5 +483,150 @@ beginfig(4);
 endfig;
 
 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  Figure 5
+%
+%  Cubic B-Spline curve with its control polygon.
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+beginfig(5);
+  numeric u;  u = 1.2cm;
+
+	% Knot sequence
+	numeric delta[];
+	delta0 = 2;
+	delta1 = 1.5;
+	delta2 = 1.5;
+	delta3 = 1.5;
+	delta4 = 1.5;
+	delta5 = 1.5;
+
+	% B-spline control points
+	pair d[];
+	d[-1] = (5.4u, .5u);
+	d0 = (4.5u, 0);
+	d1 = (0, 0);
+	d2 = (0, 2u);
+	d3 = (1.8u, 3u);
+	d4 = (4.5u, 3u);
+	d5 = (6.2u, u);
+	d6 = (9u, u);
+	d7 = (9u, 2u);
+
+	% Bezier control points
+	pair b[];
+	b0 = d[-1];
+	b1 = d0;
+	b2 = (delta0/(delta0+delta1))[d0,d1];
+
+	b16 = (delta4/(delta4+delta5))[d5,d6];
+	b17 = d6;
+	b18 = d7;
+
+	for i=2 upto 5:
+		b[3i-2]=(delta[i-2]/(delta[i-2]+delta[i-1]+delta[i]))[d[i-1],d[i]];
+		b[3i-1]=((delta[i-2]+delta[i-1])/(delta[i-2]+delta[i-1]+delta[i]))
+			[d[i-1],d[i]];
+	endfor;
+
+	for i=1 upto 5:
+		b[3i]=(delta[i-1]/(delta[i-1]+delta[i]))[b[3i-1],b[3i+1]];
+	endfor;
+
+  % Draw Bezier control polygon
+  pickup defaultpen;
+  for i = 0 upto 5:
+    draw b[3i]--b[3i+1]--b[3i+2]--b[3i+3];
+		% mark_circle (b[3i], .05u, 1);
+    % mark_circle (b[3i+1], .04u, 1);
+    % mark_circle (b[3i+2], .04u, 1);
+  endfor;
+	% mark_circle (b[18], .04u, 0);
+
+	% Draw B-spline control polygon
+	for i = -1 upto 6:
+		draw d[i]--d[i+1];
+		% mark_square (d[i], .05u, 1);
+	endfor;
+	% mark_square (d7, .05u, 1);
+
+	% Mark control points
+	for i = 0 upto 18:
+		mark_circle (b[i], 0.05u, 1);
+	endfor;
+
+	for i = -1 upto 7:
+		mark_square (d[i], 0.05u, 1);
+	endfor;
+
+  % Draw curve
+  pickup pencircle scaled 2pt;
+  for i = 0 upto 5:
+    draw b[3i]..controls b[3i+1] and b[3i+2]..b[3i+3];
+  endfor;
+
+  % Labels
+  label.lrt (btex ${\bf b}_0={\bf d}_{-1}$ etex, d[-1]);
+	label.lrt (btex ${\bf b}_1={\bf d}_0$ etex, d0);
+	label.bot (btex ${\bf d}_1$ etex, d1);
+	label.lft (btex ${\bf d}_2$ etex, d2);
+	label.top (btex ${\bf d}_3$ etex, d3);
+	label.top (btex ${\bf d}_4$ etex, d4);
+	label.bot (btex ${\bf d}_5$ etex, d5);
+	label.rt  (btex ${\bf b}_{17}={\bf d}_6$ etex, d6);
+	label.rt  (btex ${\bf b}_{18}={\bf d}_7$ etex, d7);
+
+	label.llft(btex ${\bf b}_2$ etex, b2);
+	label.urt (btex ${\bf b}_3$ etex, b3);
+	label.lft (btex ${\bf b}_4$ etex, b4);
+	label.lft (btex ${\bf b}_5$ etex, b5);
+	label.rt  (btex ${\bf b}_6$ etex, b6);
+	% label.ulft(btex ${\bf b}_7$ etex, b7);
+	% label.ulft(btex ${\bf b}_8$ etex, b8);
+	% label.lrt (btex ${\bf b}_9$ etex, b9);
+	% label.top (btex ${\bf b}_{10}$ etex, b10);
+	% label.top (btex ${\bf b}_{11}$ etex, b11);
+	% label.llft(btex ${\bf b}_{12}$ etex, b12);
+	% label.rt  (btex ${\bf b}_{13}$ etex, b13);
+	% label.lft (btex ${\bf b}_{14}$ etex, b14);
+	% label.urt (btex ${\bf b}_{15}$ etex, b15);
+	% label.bot (btex ${\bf b}_{16}$ etex, b16);
+
+
+  % label.rt   (btex ${\bf d}_1$ etex, d[1]);
+  % label.lrt  (btex ${\bf d}_2$ etex, d[2]);
+  % label.llft (btex ${\bf d}_3$ etex, d[3]);
+  % label.lft  (btex ${\bf d}_4$ etex, d[4]);
+
+  % label.bot  (btex ${\bf p}_0={\bf p}_5$ etex, b[0] shifted (0,-.05u));
+
+  % pair offsetv;
+  % offsetv = (.1u,0);
+
+  % numeric sfactor;
+  % sfactor = 0.6;
+
+  % numeric theta[];
+
+  % theta0 = angle (d1 - d0);
+  % label (btex $\Delta_{-1}=\Delta_{L-1}$ etex scaled sfactor rotated theta0,
+  %     .5[d0, b1] shifted (offsetv rotated (theta0+90)));
+  % label (btex $\Delta_0$ etex scaled sfactor rotated theta0,
+  %     .5[b1, b2] shifted (offsetv rotated (theta0+90)));
+  % label (btex $\Delta_1$ etex scaled sfactor rotated theta0,
+  %     .5[b2, d1] shifted (offsetv rotated (theta0+90)));
+
+  % theta1 = angle (d5 - d4);
+  % label (btex $\Delta_{-2}=\Delta_{L-2}$ etex scaled sfactor rotated theta1,
+  %     .5[d4, b13] shifted (offsetv rotated (theta1+90)));
+  % label (btex $\Delta_{-1}=\Delta_{L-1}$ etex scaled sfactor rotated theta1,
+  %     .5[b13, b14] shifted (offsetv rotated (theta1+90)));
+  % label (btex $\Delta_0$ etex scaled sfactor rotated theta1,
+  %     .5[b14, d5] shifted (offsetv rotated (theta1+90)));
+
+endfig;
 
 end

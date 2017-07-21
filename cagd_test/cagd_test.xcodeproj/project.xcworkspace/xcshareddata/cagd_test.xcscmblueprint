@@ -1,0 +1,30 @@
+{
+  "DVTSourceControlWorkspaceBlueprintPrimaryRemoteRepositoryKey" : "9B64E3342679C2423DE736F36F7E6F0B43BAE7FE",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyRepositoryLocationsKey" : {
+
+  },
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyStatesKey" : {
+    "9B64E3342679C2423DE736F36F7E6F0B43BAE7FE" : 9223372036854775807,
+    "1A5C4226770A5C2DE49DDEC7F9D9E527F7C49AA6" : 9223372036854775807
+  },
+  "DVTSourceControlWorkspaceBlueprintIdentifierKey" : "66E12F25-3BFC-4408-89FD-EC8585E333D7",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyPathsKey" : {
+    "9B64E3342679C2423DE736F36F7E6F0B43BAE7FE" : "cagd\/",
+    "1A5C4226770A5C2DE49DDEC7F9D9E527F7C49AA6" : "mpoi\/"
+  },
+  "DVTSourceControlWorkspaceBlueprintNameKey" : "cagd_test",
+  "DVTSourceControlWorkspaceBlueprintVersion" : 204,
+  "DVTSourceControlWorkspaceBlueprintRelativePathToProjectKey" : "cagd_test\/cagd_test.xcodeproj",
+  "DVTSourceControlWorkspaceBlueprintRemoteRepositoriesKey" : [
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/bitbucket.org\/teaeles\/mpoi.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "1A5C4226770A5C2DE49DDEC7F9D9E527F7C49AA6"
+    },
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/bitbucket.org\/teaeles\/cagd.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "9B64E3342679C2423DE736F36F7E6F0B43BAE7FE"
+    }
+  ]
+}

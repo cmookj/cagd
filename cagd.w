@@ -31,6 +31,7 @@
 \def\bbb{{\bf b}}
 \def\bbc{{\bf c}}
 \def\bbd{{\bf d}}
+\def\bbm{{\bf m}}
 \def\bbp{{\bf p}}
 \def\bbr{{\bf r}}
 \def\bbx{{\bf x}}
@@ -61,7 +62,7 @@
 	\space\number\day, \number\year}
 
 % Definitions for revisiondata and title
-\def\years{2015--2016}
+\def\years{2015--2017}
 \def\title{Computer-Aided Geometric Design}
 \def\headertitle{CAGD}
 
@@ -287,7 +288,7 @@ void close_postscript_file (psf&, bool);
 
 
 
-@* Test program.
+@ Test program.
 
 @(test.cpp@>=
 #include <iostream>
@@ -313,13 +314,6 @@ void print_title (const char* str) @+ {
 }
 
 int main (int argc, char* argv[]) @+ {
-  cout << @/
-"================================================================================\n" <<@/
-"                                                                                \n" <<@/
-"                     T E S T  :  C A G D    L I B R A R Y                       \n" <<@/
-"                                                                                \n" <<@/
-"================================================================================\n\n";
-
   @<Test routines@>;
   return 0;
 }
@@ -327,6 +321,7 @@ int main (int argc, char* argv[]) @+ {
 
 
 
+@i math.w
 @i point.w
 @i curve.w
 @i bezier.w
@@ -336,10 +331,4 @@ int main (int argc, char* argv[]) @+ {
 
 
 
-@q ************************************************************************** @>
-@q                                                                            @>
-@q                                I N D E X                                   @>
-@q                                                                            @>
-@q ************************************************************************** @>
-@* Index.  이 프로그램에 사용된 심볼과 그에 대한 설명을 보려면 아래의 인덱스를
-참조하라.
+@* Index.

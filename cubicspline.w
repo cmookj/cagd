@@ -51,7 +51,7 @@ typedef vector<double>::const_iterator const_knot_itr;
 @<Description of |cubic_spline|@>@;
 @<Evaluation and derivative of |cubic_spline|@>@;
 @<Methods for interpolation of |cubic_spline|@>@;
-@<Methods to obtain a |bezier| curve for a segment of |cubic_spline|@>@;
+@<Methods for conversion of |cubic_spline|@>@;
 @<Methods to calculate curvature of |cubic_spline|@>@;
 @<Methods for knot insertion and removal of |cubic_spline|@>@;
 @<Methods for PostScript output of |cubic_spline|@>@;
@@ -164,8 +164,8 @@ string description () const;
 
 
 
-
-@ Cubic spline 곡선 위의 점은 잘 알려진바와 같이 de Boor 알고리즘으로 계산한다.
+@*1 Evaluation of Cubic Spline (de Boor Algorithm).
+Cubic spline 곡선 위의 점은 잘 알려진바와 같이 de Boor 알고리즘으로 계산한다.
 Degree $n$이고 $L$개의 다항함수 조각(polynomial segments)으로 이루어진 B-spline
 곡선은 $L+2n-1$개의 nondecreasing knot sequence
 $$u_0,\ldots,\underbrace{u_{n-1},\ldots,u_{L+n-1}}_{\rm domain\ knots},
@@ -321,7 +321,7 @@ work item들이 공유하지만, 세 번째와 네 번째는 work item마다 자
 라이브러리의 |vector| 타입으로부터 꺼내 단일한 memory block으로 복사하는 일이다.
 Knot sequence는 scalar 값이므로 순서대로 복사하고,
 $m$ 차원 공간의 control point들도 순서대로 모든 원소들을 복사한다.
-$k$개의 control point들, $\bbd_i$가 있다면 하나의 |double|형 배열에 아래와 
+$k$개의 control point들, $\bbd_i$가 있다면 하나의 |double|형 배열에 아래와
 같이 저장된다:
 $$\bbd_1(1),\bbd_1(2),\ldots,\bbd_1(m),\ldots,\bbd_k(1),\ldots,\bbd_k(m)$$
 
@@ -369,7 +369,7 @@ _mp.enqueue_data_parallel_kernel (_kernel_id, N, 40);
 @ 곡선을 계산하는 de Boor 알고리즘의 OpenCL 구현.
 Work item별로 따로 사용하는 private memory는 동적 할당을 지원하지 않는다.
 따라서 부득이하게 고정된 크기의 배열을 사용하는데,
-cubic spline이므로 |n|은 3으로 고정하고, 허용하는 곡선의 최고 차원은 6으로 
+cubic spline이므로 |n|은 3으로 고정하고, 허용하는 곡선의 최고 차원은 6으로
 설정했다.
 이는 OpenCL device의 spec에 따라 더 높이는 것이 가능하다.
 
@@ -378,7 +378,7 @@ $[u_{n-1},\ldots,u_{L+n-1}]$을 $N-1$개의 등간격으로 각 work item별로 
 계산해야 할 $u$ 값을 계산하고, $u$에 대하여
 $u_i\in[u_I,u_{I+1}]$을 만족하는 $I$ 값을 계산한다.
 
-OpenCL 디바이스는 계산 유닛(Compute Unit)들로 이루어지고, 계산 유닛은 한 개 
+OpenCL 디바이스는 계산 유닛(Compute Unit)들로 이루어지고, 계산 유닛은 한 개
 이상의
 PE (Processing Element)들로 이루어진다.  디바이스에서의 실제 계산은 PE 안에서
 이루어진다.  다수의 PE들이 같은 명령어를 실행한다는 점(SIMT; Single Instruction,
@@ -509,7 +509,8 @@ cubic_spline::derivative (const double u) const @+ {
   bezier bezier_curve = bezier (bezier_ctrlpt);
 
   double delta = knots[index + 1] - knots[index];
-  double t = (u - knots[index])/delta; // Change coordinate from b-spline to \bezier.
+  // Change coordinate from b-spline to \bezier.
+  double t = (u - knots[index])/delta;
 
   point drv (bezier_curve.derivative (t));
   return drv/delta; // Transform the velocity into the u coordinate (b-spline).
@@ -618,7 +619,7 @@ void insert_end_knots ();
 
 
 @ Cubic spline 곡선의 control point들을 주어진 point들로 대치하는 method.
-이는 주로 cubic spline interpolation의 계산 결과를 반영하는 것을 염두에 두고 
+이는 주로 cubic spline interpolation의 계산 결과를 반영하는 것을 염두에 두고
 있어서, 양 끝점들과 중간 점들의 |vector| 타입을 입력으로 받는다.
 
 @<Miscellaneous methods of |cubic_spline|@>+=
@@ -646,434 +647,115 @@ void set_control_points (const point&, const vector<point>&, const point&);
 
 
 
-@ Inversion of a tridiagonal matrix.
+@*1 Interpolation of Cubic Spline. 
 
-Cubic spline 곡선의 보간법을 다루기 위하여 먼저 tridiagonal system의 해법을 
-설명하고 구현한다.
-
-Riaz A. Usmani, ``Inversion of a Tridiagonal Jacobi Matrix,''
-{\sl Linear Algebra and its Applications}, {\bf 212}, 1994, pp.~413--414와
-C. M. da Fonseca, ``On the Eigenvalues of Some Tridiagonal Matrices,''
-{\sl J. Computational and Applied Mathematics}, {\bf 200}(1), 2007,
-pp.~283--286을 참고하면 tridiagonal matrix의 역행렬은 간단한 계산으로 구할 
-수 있다.
-
-행렬
-$$T=\pmatrix{
-  \beta_1&\gamma_1&&&&&\cr
-  \alpha_2&\beta_2&\gamma_2&&&&\cr
-  &&&\ddots&&&\cr
-  &&&&\alpha_{n-1}&\beta_{n-1}&\gamma_{n-1}\cr
-  &&&&&\alpha_n&\beta_n\cr}$$
-의 역행렬 $T^{-1}$의 원소는 다음과 같이 주어진다.
-$$\left(T^{-1}\right)_{ij}=
-\cases{
-  (-1)^{i+j}\gamma_i\cdots\gamma_{j-1}\theta_{i-1}\phi_j/\theta_n,&
-  if $i<j$;\cr
-  \noalign{\vskip6pt}
-  \theta_{i-1}\phi_j/\theta_n,& if $i=j$;\cr
-  \noalign{\vskip6pt}
-  (-1)^{i+j}\alpha_j\cdots\alpha_{i-1}\theta_{j-1}\phi_i/\theta_n,&
-  if $i>j$.\cr
-}$$
-이 때 $\theta_i$와 $\phi_i$는 다음의 점화식으로부터 얻는다.
-$$\vcenter{\halign{$\hfil#$&${}=#\hfil$&$\quad#\hfil$\cr
-\theta_i&\beta_i\theta_{i-1}-\gamma_{i-1}\alpha_{i-1}\theta_{i-2}&
-  (i=2,3,\ldots,n),\cr
-\phi_i&\beta_{i+1}\phi_{i+1}-\gamma_{i+1}\alpha_{i+1}\phi_{i+2}&
-  (i=n-2,\ldots,0).\cr
-}}$$
-이 점화식들의 초기 조건은
+Cubic spline은 \bezier\ 형식과 Hermite 형식이 있다.
+곡선이 지나야 하는 경로점 $\bbx_i$와 그 점에서의 접선벡터 $\bbm_i$, $(i=0,\ldots,L)$이
+주어져 있으면, junction \bezier\ 포인트는
+$$\bbb_{3i}=\bbx_i,$$
+inner \bezier\ 포인트는
 $$\eqalign{
-\theta_0=1,& \quad\theta_1=\beta_1;\cr
-\phi_{n-1}=\beta_n,& \quad\phi_n=1\cr
+\bbb_{3i+1}&=\bbb_{3i}+{\Delta_i\over3}\bbm_i\quad\quad(i=0,\ldots,L-1)\cr
+\bbb_{3i-1}&=\bbb_{3i}-{\Delta_{i-1}\over3}\bbm_i\quad\quad(i=1,\ldots,L)\cr
 }$$
-이다.
+로 바로 계산 가능하다.  이 때, $\Delta_i=\Delta u_i$ 이다.
 
-정리하면, tridiagonal matrix의 역행렬을 구하는 과정은 다음과 같다:
-{\parindent=40pt
-\item{1.} $\theta_0$와 $\theta_1$을 이용하여 $\theta_2,\ldots,\theta_n$을 계산;
-\item{2.} $\theta_n=0$이면 행렬이 비가역이므로 계산 종료.  
-  그렇지 않으면 나머지 단계로 진행;
-\item{3.} $\phi_{n_1}$과 $\phi_n$을 이용하여 $\phi_{n-1},\ldots,\phi_1$을 계산;
-\item{4.} $\phi_i$와 $\theta_i$들을 이용하여 역행렬의 원소들을 계산.
+@<Methods for conversion of |cubic_spline|@>+=
+vector<point>
+cubic_spline::bezier_points_from_hermite_form (@/
+  @t\idt@>const vector<point>& x,@/
+  @t\idt@>const vector<point>& m@/
+) @+ {
+
+  if (x.size() == 0) {
+    return vector<point>(0, point(0));
+  }
+
+  unsigned long L = x.size() - 1;
+  vector<point> b(3*L+1, point(x[0].dim()));
+
+  b[0] = x[0];
+  for (unsigned long i = 0; i != L; i++) {
+    b[3*i+3] = x[i+1];
+
+    double du = _knot_sqnc[i+1] - _knot_sqnc[i];
+    b[3*i+1] = b[3*i] + du/3.0*m[i];
+    b[3*i+2] = b[3*i+3] - du/3.0*m[i+1];
+  }
+
+  return b;
 }
 
-여기에서 정의하는 |invert_tridiagonal()| 함수는 계산한 역행렬을
-row-major order, 즉 첫 번째 행부터 마지막 행까지 하나의 |vector|에 순서대로 넣어
-반환한다.  행렬이 비가역적이면 함수는 |-1|을, 가역이면 |0|을 반환한다.
-
-@<Implementation of |cagd| functions@>+=
-int cagd::invert_tridiagonal (@/
-  @t\idt@> const vector<double>& alpha,@/
-  @t\idt@> const vector<double>& beta,@/
-  @t\idt@> const vector<double>& gamma,@/
-  @t\idt@> vector<double>& inverse@/
-  @t\idt@> ) @+ {
-
-  size_t n = beta.size();
-
-  vector<double> theta (n+1, 0.); // From 0 to $n$.
-  theta[0] = 1.;
-  theta[1] = beta[0];
-
-  for (size_t i = 2; i != n+1; i++) {
-    theta[i] = beta[i-1]*theta[i-1] - gamma[i-2]*alpha[i-2]*theta[i-2];
-  }
-
-  if (theta[n] == 0.) return -1; // The matrix is singular.
-
-  vector<double> phi (n+1, 0.); // From 0 to $n$.
-  phi[n] = 1.;
-  phi[n-1] = beta[n-1];
-
-  for (size_t i = n-1; i != 0; i--) {
-    phi[i-1] = beta[i-1]*phi[i] - gamma[i-1]*alpha[i-1]*phi[i+1];
-  }
-
-  for (size_t i = 0; i != n; i++) {
-    for (size_t j = 0; j != n; j++) {
-      double elem = 0.;
-      if (i < j) {
-        double prod = 1.;
-        for (size_t k = i; k != j; k++) {
-          prod *= gamma[k];
-        }
-        elem = pow (-1, i+j)*prod*theta[i]*phi[j+1]/theta[n];
-      } else if (i == j) {
-        elem = theta[i]*phi[j+1]/theta[n];
-      } else {
-        double prod = 1.;
-        for (size_t k = j; k != i; k++) {
-          prod *= alpha[k];
-        }
-        elem = pow (-1, i+j)*prod*theta[j]*phi[i+1]/theta[n];
-      }
-      inverse [i*n + j] = elem;
-    }
-  }
-
-  return 0; // No error.
-}
-
-@ @<Declaration of |cagd| functions@>+=
-int invert_tridiagonal (@/
-  @t\idt@> const vector<double>&,@/
-  @t\idt@> const vector<double>&,@/
-  @t\idt@> const vector<double>&,@/
-  @t\idt@> vector<double>&
-);
-
-@ Test: Inversion of a Tridiagonal Matrix.
-
-예제로
-$$\pmatrix{1&4&0&0\cr 3&4&1&0\cr 0&2&3&4\cr 0&0&1&3\cr}$$
-의 역행렬을 계산한다.  결과는
-$$\pmatrix{-0.304348&0.434783&-0.26087&0.347826\cr
-0.326087&-0.108696&0.0652174&-0.0869565\cr
--0.391304&0.130435&0.521739&-0.695652\cr
-0.130435&-0.0434783&-0.173913&0.565217\cr}$$
-이다.
-
-@<Test routines@>+=
-print_title ("inversion of a tridiagonal matrix");
-{
-  vector<double> alpha(3, 0.);
-  alpha[0] = 3.; @+ alpha[1] = 2.; @+ alpha[2] = 1.;
-
-  vector<double> beta(4, 0.);
-  beta[0] = 1.; @+ beta[1] = 4.; @+ beta[2] = 3.; @+ beta[3] = 3.;
-
-  vector<double> gamma(3, 0.);
-  gamma[0] = 4.; @+ gamma[1] = 1.; @+ gamma[2] = 4.;
-
-  vector<double> inv(4*4, 0.);
-  cagd::invert_tridiagonal (alpha, beta, gamma, inv);
-
-  for (size_t i = 0; i != 4; i++) {
-    for (size_t j = 0; j != 4; j++) {
-      cout << inv[i*4 +j] << "  ";
-    }
-    cout << endl;
-  }
-}
+@ @<Methods of |cubic_spline|@>+=
+public: @/
+vector<point> bezier_points_from_hermite_form (@/
+  @t\idt@>const vector<point>&,
+  const vector<point>&);
 
 
-@ Multiplication of a matrix and a vector.
-Tridiagonal matrix의 역행렬을 이용하여 tridiagonal system의 해를 구하려면,
-일반적인 행렬과 벡터의 곱셈이 필요하다.  
-여기서는 row-major order로 하나의 |vector| 타입 객체에 저장된 정방행렬과 
-하나의 |vector| 타입 객체에 저장되어 있는 column vector의 곱셈을
-구현한다.
-
-@<Implementation of |cagd| functions@>+=
-vector<double> cagd::multiply ( @/
-                    @t\idt@>const vector<double>& mat, @/
-                    @t\idt@>const vector<double>& vec @/
-                    @t\idt@>) @+ {
-  size_t n = vec.size();
-  vector<double> mv (n, 0.);
-  for (size_t i = 0; i != n; i++) {
-    for (size_t k = 0; k != n; k++) {
-      mv[i] += mat[i*n +k] *vec[k];
-    }
-  }
-  return mv;
-}
-
-@ @<Declaration of |cagd| functions@>+=
-vector<double> multiply ( @/
-                    @t\idt@>const vector<double>&, @/
-                    @t\idt@>const vector<double>& );
 
 
-@ Tridiagonal matrix의 역행렬을 이용하여 tridiagonal system의 해를 구하는 것은
-매우 간단하다.
-$$A\bbx=\bbb$$
-에서 세 개의 |vector<double>| 타입의 입력인자, |l|, |d|, |u|는 각각
-$n\times n$ 행렬 $A$의 lower diagonal, diagonal, upper diagonal element들이다.
-|l|과 |u|는 $n-1$개, |d|는 $n$개의 원소를 가져야 한다.
-|vector<point>| 타입의 인자 |b|와 |x|는 각각 방정식의 우변과 해를 의미한다.
-방정식의 해가 유일하게 존재하면 함수는 0을, 그렇지 않으면 |-1|을 반환한다.
-
-@<Implementation of |cagd| functions@>+=
-int cagd::solve_tridiagonal_system ( @/
-  @t\idt@>const vector<double>& l, @/
-  @t\idt@>const vector<double>& d, @/
-  @t\idt@>const vector<double>& u, @/
-  @t\idt@>const vector<point>& b, @/
-  @t\idt@>vector<point>& x @/
-  @t\idt@>) @+ {
-
-  size_t n = d.size();
-  vector<double> Ainv (n*n, 0.);
-
-  if (cagd::invert_tridiagonal (l, d, u, Ainv) != 0) return -1;
-
-  for (size_t i = 1; i != b[0].dim()+1; i++) {
-    vector<double> r (n, 0.);
-    for (size_t k = 0; k != n; k++) {
-      r[k] = b[k](i);
-    }
-
-    vector<double> xi = cagd::multiply (Ainv, r);
-    for (size_t k = 0; k != n; k++) {
-      x[k](i) = xi[k];
-    }
-  }
-
-  return 0;
-}
-
-@ @<Declaration of |cagd| functions@>+=
-int solve_tridiagonal_system ( @/
-  @t\idt@>const vector<double>&, @/
-  @t\idt@>const vector<double>&, @/
-  @t\idt@>const vector<double>&, @/
-  @t\idt@>const vector<point>&, @/
-  @t\idt@>vector<point>&);
-
-
-@ Ahlberg-Nilson-Walsh Algorithm. (Solution of a cyclic tridiagonal system.)
-
-Tridiagonal system을 구성하는 관계식이 시작점과 끝점에서도 꼬리에 꼬리를 무는 
-형태로
-반복되는 경우 cyclic tridiagonal system이라 부르며, Ahlberg-Nilson-Walsh
-algorithm (Clive Temperton, ``Algorithms for the Solution of Cyclic
-Tridiagonal Systems,'' {\sl J. Computational Physics}, {\bf 19}(3), 1975,
-pp.~317--323)을
-참조하면 일반적인 linear system의 해법을 쓰지 않고 변형된 tridiagonal system으로
-풀 수 있다.
-
-방정식
-$$\pmatrix{
-  \beta_1&\gamma_1&&&&&\alpha_1\cr
-  \alpha_2&\beta_2&\gamma_2&&&&\cr
-  &&&\ddots&&&\cr
-  &&&&\alpha_{n-1}&\beta_{n-1}&\gamma_{n-1}\cr
-  \gamma_{n}&&&&&\alpha_{n}&\beta_{n}\cr}
-\pmatrix{x_1\cr\vdots\cr x_{n}\cr}
-=\pmatrix{b_1\cr\vdots\cr b_{n}\cr}$$
-이 주어졌을 때,
-\def\myvbar{\strut\vrule}
-$$\pmatrix{
-  \beta_1&\gamma_1&&&&&\myvbar&\alpha_1\cr
-  \alpha_2&\beta_2&\gamma_2&&&&\myvbar&\cr
-  &&&\ddots&&&\myvbar&\cr
-  &&&&\alpha_{n-1}&\beta_{n-1}&\myvbar&\gamma_{n-1}\cr
-  \noalign{\smallskip\hrule}\cr
-  \gamma_{n}&&&&&\alpha_{n}&\myvbar&\beta_{n}\cr}=
-\pmatrix{E&f\cr
-g^\top&h\cr
-},\quad
-\pmatrix{x_1\cr\vdots\cr x_{n-1}\cr\noalign{\smallskip\hrule}\cr x_n\cr}
-=\pmatrix{\hat\bbx\cr x_n\cr},\quad
-\pmatrix{b_1\cr\vdots\cr b_{n-1}\cr\noalign{\smallskip\hrule}\cr b_n\cr}
-=\pmatrix{\hat\bbb\cr b_n\cr}
+@ $C^2$ 연속성 조건을 만족하는 spline 곡선의 \bezier\ 컨트롤 포인트들로부터
+B-spline 컨트롤 포인트를 계산할 수 있다.
+\medskip
+\noindent\centerline{%
+\includegraphics{figs/fig-2.mps}}
+\medskip
+Junction point $\bbp_i$에서의 $C^2$ 연속 조건은
+$\Delta=\Delta_{i-2}+\Delta_{i-1}+\Delta_i$라고 정의할 때,
+$$\eqalign{
+\bbb_{3i-2}&={\Delta_{i-1}+\Delta_i\over\Delta}\bbd_{i-1}
+  +{\Delta_{i-2}\over\Delta}\bbd_i,\cr
+\bbb_{3i-1}&={\Delta_i\over\Delta}\bbd_{i-1}
+  +{\Delta_{i-2}+\Delta_{i-1}\over\Delta}\bbd_i\cr
+}$$
+이므로 이 두 식을 연립하고 $\bbd_{i-1}$을 소거하면
 $$
-으로 치환하면,
+\bbd_i={(\Delta_{i-1}+\Delta_i)\bbb_{3i-1}-\Delta_i\bbb_{3i-2}
+  \over\Delta_{i-1}}
+$$
+이다. 따라서,
+B-spline 컨트롤 포인트 $\bbd_{-1}, \bbd_0, \ldots, \bbd_L, \bbd_{L+1}$는
 $$\eqalign{
-E\hat\bbx+fx_n&=\hat\bbb\cr
-g\trans\hat\bbx+hx_n&=b_n\cr
+\bbd_{-1}&=\bbb_0,\cr
+\bbd_0&=\bbb_1,\cr
+\bbd_i&={(\Delta_{i-1}+\Delta_i)\bbb_{3i-1}-\Delta_i\bbb_{3i-2}
+  \over\Delta_{i-1}}\quad (i=1,\ldots,L-1),\cr
+\bbd_L&=\bbb_{3L-1},\cr
+\bbd_{L+1}&=\bbb_{3L}\cr
 }$$
-이고, tridiagonal matrix $E$는 쉽게 역행렬을 구할 수 있으므로
-$$\hat\bbx=E^{-1}(\hat\bbb-fx_n)$$
-을 두 번째 방정식에 대입하면
-$$x_n={b_n-g\trans E^{-1}\hat\bbb\over h-g\trans E^{-1}f}$$
-이고,
-$$\hat\bbx=E^{-1}\left(\hat\bbb
-  -f{b_n-g\trans E^{-1}\hat\bbb\over h-g\trans E^{-1}f}\right)$$
-이다.
+로 주어진다.  아래 그림은 $L=6$인 경우의 예시를 보여준다.
+\medskip
+\noindent\centerline{%
+\includegraphics{figs/fig-5.mps}}
+\medskip
 
-아래 함수는 입력 인자, |alpha|, |beta|, |gamma|가 각각
-$\alpha_i$, $\beta_i$, $\gamma_i$들을 담고 있음을 가정한다.
+@<Methods for conversion of |cubic_spline|@>+=
+vector<point>
+cubic_spline::control_points_from_bezier_form (const vector<point>& b) @+ {
+  const unsigned long L = _knot_sqnc.size() - 1;
 
-@<Implementation of |cagd| functions@>+=
-int cagd::solve_cyclic_tridiagonal_system ( @/
-  @t\idt@>const vector<double>& alpha, @/
-  @t\idt@>const vector<double>& beta, @/
-  @t\idt@>const vector<double>& gamma, @/
-  @t\idt@>const vector<point>& b, @/
-  @t\idt@>vector<point>& x @/
-  @t\idt@>) @+ {
+  vector<point> d(L+3, b[0].dim());
 
-  size_t n = beta.size();
-  vector<double> Einv ((n-1)*(n-1), 0.);
-  @<Calculate $E^{-1}$@>;
+  d[0] = b[0];
+  d[1] = b[1];
 
-  size_t dim = b[0].dim();
-  vector<vector<double> > B (dim, vector<double>(n, 0.));
-  for (size_t i = 0; i != dim; i++) {
-    for (size_t j = 0; j != n; j++) {
-      B[i][j] = b[j](i+1);
-    }
-
-    @<Calculate $x_n$@>;
-    @<Calculate $\hat\bbx$@>;
-
-    for (size_t j = 0; j != n-1; j++) {
-      x[j](i+1) = xhat[j];
-    }
-    x[n-1](i+1) = x_n;
+  for (size_t i=1; i<L; i++) {
+    double delta_im1 = _knot_sqnc[i] - _knot_sqnc[i-1];
+    double delta_i = _knot_sqnc[i+1] - _knot_sqnc[i];
+    d[i+1] = ((delta_im1+delta_i)*b[3*i-1] -delta_i*b[3*i-2])/delta_im1;
   }
 
-  return 0;
+  d[L+1] = b[3*L-1];
+  d[L+2] = b[3*L];
+
+  return d;
 }
 
-@ @<Calculate $E^{-1}$@>=
-vector<double> l = vector<double>(n-2, 0.);
-vector<double> d = vector<double>(n-1, 0.);
-vector<double> u = vector<double>(n-2, 0.);
-for (size_t j = 0; j != n-2; j++) {
-  l[j] = alpha[j+1];
-  d[j] = beta[j];
-  u[j] = gamma[j];
-}
-d[n-2] = beta[n-2];
+@ @<Methods of |cubic_spline|@>+=
+public: @/
+vector<point> control_points_from_bezier_form (const vector<point>&);
 
-if (invert_tridiagonal (l, d, u, Einv) != 0) return -1;
-
-
-@ $g$와 $f$의 특성으로 인하여
-\def\Einv#1{E^{-1}_{#1}}
-$$\eqalign{
-g\trans E^{-1}f &=
-\gamma_n\left(\alpha_1\Einv{1,1} + \gamma_{n-1}\Einv{1,n-1}\right)
-+\alpha_n\left(\alpha_1\Einv{n-1,1} + \gamma_{n-1}\Einv{n-1,n-1}\right);\cr
-g\trans E^{-1}\hat\bbb &=
-\gamma_n\left(\Einv{1,1}b_1+\cdots+\Einv{1,n-1}b_{n-1}\right)
-+\alpha_n\left(\Einv{n-1,1}b_1+\cdots+\Einv{n-1,n-1}b_{n-1}\right)\cr}
-$$ 이다.
-
-@<Calculate $x_n$@>=
-double x_n_den = beta[n-1]
-  -gamma[n-1]*(alpha[0]*Einv[0] +gamma[n-2]*Einv[n-2])
-  -alpha[n-1]*(alpha[0]*Einv[(n-2)*(n-1)] +gamma[n-2]*Einv[(n-1)*(n-1)-1]);
-
-double E1b = 0.;
-double Enb = 0.;
-for (size_t j = 0; j != n-1; j++) {
-  E1b += Einv[j]*B[i][j];
-  Enb += Einv[(n-2)*(n-1) +j]*B[i][j];
-}
-double x_n_num = B[i][n-1] -gamma[n-1]*E1b -alpha[n-1]*Enb;
-double x_n = x_n_num/x_n_den;
-
-
-@ @<Calculate $\hat\bbx$@>=
-vector<double> bhat_fxn (n-1, 0.);
-for (size_t j = 0; j != n-1; j++) {
-  bhat_fxn[j] = B[i][j];
-}
-bhat_fxn[0] -= alpha[0]*x_n;
-bhat_fxn[n-2] -= gamma[n-2]*x_n;
-
-vector<double> xhat = multiply (Einv, bhat_fxn);
-
-
-@ @<Declaration of |cagd| functions@>+=
-int solve_cyclic_tridiagonal_system ( @/
-  @t\idt@>const vector<double>&, @/
-  @t\idt@>const vector<double>&, @/
-  @t\idt@>const vector<double>&, @/
-  @t\idt@>const vector<point>&, @/
-  @t\idt@>vector<point>& );
-
-@ Test: Cyclic Tridiagonal System.
-
-예제로
-$$A=\pmatrix{
-2&1&0&0&0&0&1\cr
-1&2&1&0&0&0&0\cr
-0&1&2&1&0&0&0\cr
-0&0&1&2&1&0&0\cr
-0&0&0&1&2&1&0\cr
-0&0&0&0&1&2&1\cr
-1&0&0&0&0&1&2\cr},\quad
-\bbb=\pmatrix{
-1&7\cr
-2&6\cr
-3&5\cr
-4&4\cr
-5&3\cr
-6&2\cr
-7&1\cr}$$
-일 때, $A\bbx=\bbb$의 해를 구하면,
-$$\bbx=\pmatrix{
--5&7\cr
-4&-2\cr
--1&3\cr
-1&1\cr
-3&-1\cr
--2&4\cr
-7&-5\cr}$$
-이다.
-
-@<Test routines@>+=
-print_title("cyclic tridiagonal system");
-{
-  vector<double> alpha (7, 1.);
-  vector<double> beta (7, 2.);
-  vector<double> gamma (7, 1.);
-
-  vector<point> b (7, point(2));
-  b[0] = point ({1., 7.});
-  b[1] = point ({2., 6.});
-  b[2] = point ({3., 5.});
-  b[3] = point ({4., 4.});
-  b[4] = point ({5., 3.});
-  b[5] = point ({6., 2.});
-  b[6] = point ({7., 1.});
-
-  vector<point> x (7, point(2));
-
-  solve_cyclic_tridiagonal_system (alpha, beta, gamma, b, x);
-
-  cout << "x = " << endl;
-  for (size_t i = 0; i != 7; i++) {
-    cout << "[  " << x[i](1) << " ,  " << x[i](2) << "  ]" << endl;
-  }
-}
 
 
 
@@ -1131,96 +813,111 @@ $3, 1,\ldots,1,3$을 가정한다.
 
 가장 먼저, 데이터 포인트, 매개화 (parametrization) scheme, 종단 조건
 (end condition),
-종단 하나 이전의 컨트롤 포인트 ($\bbd_0$와 $\bbd_L$)을 모두 입력으로 받는
-일반적인 보간 기능을 |interpolate()| 메쏘드로 구현한다.
+종단에서의 접선벡터 $\bbm_0$와 $\bbm_L$을 모두 입력으로 받는
+일반적인 보간 기능을 |_interpolate()| 메쏘드로 구현한다.
 이것은 모든 종류의 보간 문제를 해결하는 engine이다.
 
-|interpolate()| 메쏘드는 주어진 데이터 포인트의 갯수가 0이면 knot sequence와
-control point를 모두 비워버린 후 바로 반환한다.  데이터 포인트의 갯수가 1이면
-trivial solution으로 그 데이터 포인트를 유일한 컨트롤 포인트로, knot sequence는
-0을 3개 중첩한 후 반환한다.  그렇지 않을 경우에는 주어진
+|_interpolate()| 메쏘드는 주어진 데이터 포인트의 갯수에 따라 특별한 예외처리를
+필요로 한다:
+\item{1.} 데이터 포인트의 갯수가 0이면 knot sequence와
+control point를 모두 비워버린 후 바로 반환한다.
+\item{2.} 데이터 포인트의 갯수가 2개 이하 (1 또는 2개)면
+trivial solution이다.  Knot sequence는 0,0,0,1,1,1로 설정하고, 
+컨트롤 포인트는 첫 번째 데이터 포인트를 3개, 마지막 데이터 포인트를 3개 
+중첩한다. 
+\item{3.} 데이터 포인트의 갯수가 3개 이상이면 주어진
 parametrization scheme따라 knot sequence를 생성하고, $C^2$ cubic spline 보간에
-관한 연립방정식을 세운 후, end condition에 맞춰 일부 식을 조작한다.
+관한 연립방정식을 세운 후, end condition에 맞춰 식을 일부 조작한다.
 방정식의 해를 구함으로써 control point들을 구하고, 마지막으로 곡선 양 끝의
-knot을 3개 중첩시키면 보간이 끝난다.
-
-사용 편의성을 위해 경우에 따라 몇 가지 불필요한 인자들을 생략한
-|interpolate()| 메쏘드들을 정의한다:
-\item{1.} 데이터 포인트만 주어지거나, 데이터 포인트와 매개화 scheme이 함께
-주어지면 not-a-knot 종단 조건을 가정한다.  매개화 scheme이 주어지지 않을
-때에는 가장 범용적인 chord length 매개화를 가정한다.
-데이터 포인트가 3점 이상 주어지는 경우, 양 끝에서 하나 이전의 컨트롤 포인트들은
-not-a-knot 종단 조건에 의하여 결정되므로 큰 의미는 없지만, 데이터 포인트가 2점
-주어지는 경우 그 두 점을 잇는 직선이 얻어질 수 있도록 양 끝의 데이터 포인트를
-각각 $1/3$과 $2/3$로 내분하는 점을 계산한 후 engine method에 넘겨준다.
-
-\item{2.} 데이터 포인트와 추가로 두 개의 포인트가 주어지면 clamped end
-condition을 가정한다.  매개화 scheme은 주어진 것을 사용하거나, 아니면 chord
-length 매개화를 가정한다.
-
+knot을 3개 중첩시키면 보간이 끝난다.  (물론 데이터 포인트가 2개만 주어지면,
+보간 결과는 그 두 점을 잇는 직선이다.)
 
 @<Methods for interpolation of |cubic_spline|@>=
-void @/
-cubic_spline::_interpolate (const vector<point>& p,
-		                        parametrization scheme,
-                            end_condition cond,
-		                        const point& initial, 
-                            const point& end
-	                          ) @+ {
+void cubic_spline::_interpolate (@/
+  @t\idt@>const vector<point>& p,@/
+	@t\idt@>parametrization scheme,@/
+  @t\idt@>end_condition cond,@/
+  @t\idt@>const point& m_0,@/
+  @t\idt@>const point& m_L@/
+	) @+ {
 
   _knot_sqnc.clear();
   _ctrl_pts.clear();
 
   if (p.size() == 0) { // No data point given.
 
-  } else if (p.size() == 1) { // A single data point.  Trivial.
-    _knot_sqnc.push_back (0.);
-    _knot_sqnc.push_back (0.);
-    _knot_sqnc.push_back (0.);
+  } else if (p.size() < 3) { // One or two waypoints.
+    _knot_sqnc = vector<double> (6, 0.0);
+    _ctrl_pts = vector<point> (6, p[0]);
 
-    _ctrl_pts.push_back (p[0]);
-    _ctrl_pts.push_back (p[0]);
-    _ctrl_pts.push_back (p[0]);
+    for (size_t i = 3; i!=6; i++) {
+      _knot_sqnc[i] = 1.0;
+      _ctrl_pts[i] = p.back();
+    }
 
-  } else { // More than or equal to 2 points given.
+  } else { // More than or equal to 3 points given.
     @<Generate knot sequence according to given parametrization scheme@>;
-    @<Setup equations of cubic spline interpolation@>;
-    @<Modify equations according to end conditions and solve them@>;
+
+    if (cond == end_condition::periodic) {
+      @<Setup equations for periodic end condition and solve them@>;
+    }
+    else {
+      @<Setup Hermite form equations of cubic spline interpolation@>;
+      @<Modify equations according to end conditions and solve them@>;
+    }
     insert_end_knots ();
   }
 }
 
 @ @<Methods of |cubic_spline|@>+=
 protected:@/
-void _interpolate (const vector<point>&,
-                   parametrization,
-                   end_condition,
-                   const point&, 
-                   const point&);
+void _interpolate (@/
+  @t\idt@>const vector<point>&,@/
+  @t\idt@>parametrization,@/
+  @t\idt@>end_condition,@/
+  @t\idt@>const point&, const point&);
+
+
 
 
 @ 한편, 데이터 포인트들이 주어졌을 때 그것들을 보간하는 cubic spline 곡선을 바로
-생성하는 constructor가 있으면 매우 유용할 것이다.  아무런 parametrization
-scheme이나 end condition이 주어지지 않으면 chord length parametrization과
-not-a-knot end condition을 적용한다.
+생성하는 constructor가 있으면 매우 유용할 것이다.
+
+\item{1.} Parametrization scheme이 주어지지 않으면 centripetal
+parametrization을 적용한다.  이는 주어진 데이터 포인트에 가장 가까운 곡선을
+생성한다.
+
+\item{2a.} End condition이 주어지지 않으면 데이터 포인트의 갯수에 따라 각각
+다른 end condition을 적용한다.
+2--3개의 데이터 포인트만 주어지면 quadratic end condition을,
+4개 이상의 데이터 포인트가 주어지면 not-a-knot end condition을 적용한다.
+
+\item{2b.} 데이터 포인트와 추가로 두 개의 포인트가 주어지면 clamped end
+condition을 적용한다.
 
 @<Constructors and destructor of |cubic_spline|@>+=
-cubic_spline::cubic_spline (const vector<point>& p,
-                            end_condition cond,
-                            parametrization scheme
-                            )
+cubic_spline::cubic_spline (@/
+  @t\idt@>const vector<point>& p,@/
+  @t\idt@>end_condition cond,@/
+  @t\idt@>parametrization scheme
+  )
   @t\idt@>: curve (p), @/
   @t\idt@>_mp ("./cspline.cl"),@/
   @t\idt@>_kernel_id (_mp.create_kernel("evaluate_crv"))@/
 {
-  point one_third (2./3.*(*(p.begin())) + 1./3.*(p.back()));
-  point two_third (1./3.*(*(p.begin())) + 2./3.*(p.back()));
-  _interpolate (p, scheme, cond, one_third, two_third);
+  point m_0 (2./3.*(*(p.begin())) + 1./3.*(p.back()));
+  point m_L (1./3.*(*(p.begin())) + 2./3.*(p.back()));
+  if ((p.size() < 4) && cond == end_condition::not_a_knot) {
+    _interpolate (p, scheme, end_condition::quadratic, m_0, m_L);
+  }
+  else {
+    _interpolate (p, scheme, cond, m_0, m_L);
+  }
 }
 
 cubic_spline::cubic_spline (const vector<point>& p,
                             const point i, const point e,
-                            parametrization scheme 
+                            parametrization scheme
                             )
   @t\idt@>: curve (p), @/
   @t\idt@>_mp ("./cspline.cl"),@/
@@ -1231,11 +928,11 @@ cubic_spline::cubic_spline (const vector<point>& p,
 
 @ @<Methods of |cubic_spline|@>+=
 public:@/
-cubic_spline (const vector<point>&, 
+cubic_spline (const vector<point>&,
               end_condition cond = end_condition::not_a_knot,
-              parametrization scheme = parametrization::chord_length);
+              parametrization scheme = parametrization::centripetal);
 cubic_spline (const vector<point>&, const point, const point,
-              parametrization scheme = parametrization::chord_length);
+              parametrization scheme = parametrization::centripetal);
 
 
 
@@ -1364,8 +1061,485 @@ for (size_t i = 0; i != p.size(); i++) {
 
 
 
-@ Cubic spline 보간의 해를 구하기 위한 방정식을 유도하기 위하여,
-데이터 포인트 $\bbp_i$에서의 $C^2$ 연속성 조건을 그림으로 표현하면 아래와 같다.
+@ Hermite form을 이용한 cubic spline의 보간 방정식.
+Hermite form으로 기술한 piecewise cubic spline의 $C^2$ 조건으로부터
+보간 방정식을 유도할 수 있다.
+$u\in[u_i,u_{i+1}]$에 대하여 Hermite form은
+$$\bbx(u)=\bbx_i H^3_0(r) + \bbm_i\Delta_iH^3_1(r)
+  +\Delta_i\bbm_{i+1}H^3_2(r) + \bbx_{i+1}H^3_3(r)$$
+이다.  이 때, $\Delta_i=u_{i+1}-u_i$이고 local parameter
+$r=(u-u_i)/\Delta_i$ 이다.
+Hermite polynomial $H_i^3$은
+$$\eqalign{
+H^3_0(t)&=B^3_0(t)+B^3_1(t),\cr
+H^3_1(t)&={1\over3}B^3_1(t),\cr
+H^3_2(t)&=-{1\over3}B^3_2(t),\cr
+H^3_3(t)&=B^3_2(t)+B^3_3(t)
+}$$
+이며 Bernstein polynomial, $B_j^3(t)$는
+$$B_j^n(t)={n\choose j} t^j(1-t)^{n-j}$$
+이다.  Binomial coefficients는
+$${n\choose j}=\cases{
+{n!\over j!(n-j)!},&if $0\geq j\geq n$;\cr
+0,&otherwise
+}$$
+이다.
+
+$C^2$ 조건은
+$$\ddot{\bbx}_+(u_i)=\ddot{\bbx}_-(u_i)$$
+이므로 위의 식을 대입하여 정리하면
+$$\Delta_i\bbm_{i-1}+2(\Delta_{i-1}+\Delta_i)\bbm_i
+  +\Delta_{i-1}\bbm_{i+1}
+  =3\left({\Delta_i\Delta\bbx_{i-1}\over\Delta_{i-1}}
+          +{\Delta_{i-1}\Delta\bbx_i\over\Delta_i}\right)
+\quad(i=1,\ldots,L-1)
+$$
+이다.
+따라서, $\bbm_0$와 $\bbm_L$이 주어지는 clamped end condition을 가정하면
+시스템 방정식은
+$$\pmatrix{
+  1&&&&&&\cr
+  \alpha_1 &\beta_1 &\gamma_1 &&&&\cr
+  &&&\ddots&&&\cr
+  &&&&\alpha_{L-1} &\beta_{L-1} &\gamma_{L-1}\cr
+  &&&&&&1\cr}
+\pmatrix{
+  \bbm_0\cr \bbm_1\cr \vdots\cr \bbm_{L-1}\cr \bbm_L\cr}
+=\pmatrix{
+  \bbr_0\cr \bbr_1\cr \vdots\cr \bbr_{L-1}\cr \bbr_L\cr}
+$$
+이 때,
+$$\eqalign{
+\alpha_i&=\Delta_i,\cr
+\beta_i&=2(\Delta_{i-1}+\Delta_i),\cr
+\gamma_i&=\Delta_{i-1}\cr
+}$$
+이고
+$$\eqalign{
+\bbr_0&=\bbm_0,\cr
+\bbr_i&=3\left({\Delta_i\Delta\bbx_{i-1}\over\Delta_{i-1}}
+          +{\Delta_{i-1}\Delta\bbx_i\over\Delta_i}\right)
+  \quad i=1,\ldots,L-1,\cr
+\bbr_L&=\bbm_L\cr
+}$$
+이다.
+첫 번째와 마지막 방정식은 곡선의 종단조건에 따라 달라진다. 이는 다음 마디에서
+보다 자세하게 다룬다.
+
+@<Setup Hermite form equations of cubic spline interpolation@>=
+unsigned long L = p.size() - 1;
+
+vector<double> a(L, 0.0);    // $\alpha$, lower diagonal.
+vector<double> b(L+1, 0.0);  // $\beta$, diagonal.
+vector<double> c(L, 0.0);    // $\gamma$, upper diagonal.
+vector<point> r(L+1, point(p[0].dim()));  // ${\bf r}$, right hand side.
+
+for (size_t i = 1; i != L; i++) {
+  double d_im1 = delta (i-1);
+  double d_i = delta (i);
+
+  double alpha_i = d_i;
+  double beta_i = 2.0*(d_im1+d_i);
+  double gamma_i = d_im1;
+
+  a[i-1] = alpha_i;
+  b[i] = beta_i;
+  c[i] = gamma_i;
+
+  point r_i = 3.0*(d_i*(p[i]-p[i-1])/d_im1 + d_im1*(p[i+1]-p[i])/d_i);
+  r[i] = r_i;
+}
+
+
+
+
+@ 종단조건.
+앞에서 설명한 바와 같이 cubic spline 보간은 방정식의 갯수보다
+미지수의 갯수가 2개 많은 under-constrained system이다.  부족한 조건 2개는 곡선
+양 끝단에서 컨트롤 포인트가 만족해야 하는 end condition으로 결정해야하며,
+|cubic_spline| 타입은 clamped, Bessel, quadratic,
+not-a-knot, natural, 그리고 periodic end condition을 지원한다.
+
+Bessel end condition: $\bbp_0$에서의 접선벡터 $\bbm_0$는 처음 세 점을
+보간하는 parabola의 접선벡터와 동일하다.  따라서,
+$$\bbr_0=-{2(2\Delta_0+\Delta_1)\over\Delta_0\beta_1}\bbp_0
+  + {\beta_1\over2\Delta_0\Delta_1}\bbp_1
+  - {2\Delta_0\over\Delta_1\beta_1}\bbp_2$$
+이고
+$$\bbr_L={2\Delta_{L-1}\over\Delta_{L-2}\beta_{L-1}}\bbp_{L-2}
+  -{\beta_{L-1}\over2\Delta_{L-2}\Delta_{L-1}}\bbp_{L-1}
+  +{2(2\Delta_{L-1}+\Delta_{L-2})\over\beta_{L-1}\Delta_{L-1}}\bbp_L$$
+이다.
+
+Quadratic end condition: 이는 곡선의 마지막 조각이 2차 다항식이 되는 조건이며
+$$\eqalign{
+\ddot\bbx(u_0)&=\ddot\bbx(u_1),\cr
+\ddot\bbx(u_{L-1})&=\ddot\bbx(u_L)\cr
+}$$
+이다.  따라서 시스템 방정식은
+$$\pmatrix{
+  1& 1&&&&&\cr
+  \alpha_1 &\beta_1 &\gamma_1 &&&&\cr
+  &&&\ddots&&&\cr
+  &&&&\alpha_{L-1} &\beta_{L-1} &\gamma_{L-1}\cr
+  &&&&&1 &1\cr}
+\pmatrix{
+  \bbm_0\cr \bbm_1\cr \vdots\cr \bbm_{L-1}\cr \bbm_L\cr}
+=\pmatrix{
+  \bbr_0\cr \bbr_1\cr \vdots\cr \bbr_{L-1}\cr \bbr_L\cr}
+$$
+이고,
+$$\eqalign{
+\bbr_0&={2\over\Delta_0}\Delta\bbp_0,\cr
+\bbr_L&={2\over\Delta_{L-1}}\Delta\bbp_{L-1}\cr
+}$$
+이다.
+
+Natural end condition: 이는 곡선의 양 끝에서 곡률이 0이 되는 조건이다. 즉,
+$$\ddot\bbx(u_0)=\ddot\bbx(u_L)=0$$
+이 되므로 시스템 방정식은
+$$\pmatrix{
+  2& 1&&&&&\cr
+  \alpha_1 &\beta_1 &\gamma_1 &&&&\cr
+  &&&\ddots&&&\cr
+  &&&&\alpha_{L-1} &\beta_{L-1} &\gamma_{L-1}\cr
+  &&&&&1 &2\cr}
+\pmatrix{
+  \bbm_0\cr \bbm_1\cr \vdots\cr \bbm_{L-1}\cr \bbm_L\cr}
+=\pmatrix{
+  \bbr_0\cr \bbr_1\cr \vdots\cr \bbr_{L-1}\cr \bbr_L\cr}
+$$
+이고
+$$\eqalign{
+\bbr_0&={3\over\Delta_0}\Delta\bbp_0,\cr
+\bbr_L&={3\over\Delta_{L-1}}\Delta\bbp_{L-1}\cr
+}$$
+이다.
+
+
+{
+\def\du#1{\Delta_{#1}}
+\def\ndu#1{{\Delta^*_{#1}}}
+
+Not-a-knot end condition: 이는 곡선 양 끝에 놓인 각각 2개의 곡선 조각들이 하나의
+\bezier\ 곡선이 되도록하는 조건이다.  보간해야 하는 데이터 포인트,
+$\bbp_0,\ldots,\bbp_L$이 있으면, $\bbp_0$과 $\bbp_1$을 연결하는 곡선과
+$\bbp_1$과 $\bbp_2$를 연결하는 곡선이
+$\bbp_0$과 $\bbp_2$를 연결하는 한 곡선의 subdivision이 되도록 하는 것이다.
+이는 $\bbp_{L-2}$, $\bbp_{L-1}$, $\bbp_L$ 사이에서도 동일하게 주어지는 조건이다.
+아래의 그림은 not-a-knot end condition을 만족하는 곡선의 시작 부분을 보여준다.
+\medskip
+\noindent\centerline{%
+\includegraphics{figs/fig-3.mps}}
+\medskip
+먼저 $\bbp_0$부터 $\bbp_2$까지 하나의 \bezier\ 곡선이 되어야 하는 조건은
+de Casteljau 알고리즘으로부터
+$$\eqalign{
+\bbd_0&=(1-s)\bbp_0+s\bba_-;\quad s={\du0\over\du0+\du1}\cr
+\bbb_5&=(1-s)\bba_++s\bbp_2=(1-r)\bbd_1+r\bbd_2;\quad
+      r={\du0+\du1\over\du0+\du1+\du2}\cr
+\bbd_1&=(1-s)\bba_-+s\bba_+\cr}$$
+이므로
+$$\eqalign{
+\bba_-&={1\over s}\bbd_0-{1-s\over s}\bbp_0\cr
+\bba_+&={1\over 1-s}\left\{(1-r)\bbd_1+r\bbd_2\right\}-{s\over 1-s}\bbp_2\cr}
+$$
+을 세 번째 식에 대입하고 정리하면
+$${1-s\over s}\bbd_0+\left({2s-sr-1\over 1-s}\right)\bbd_1+{sr\over 1-s}\bbd_2
+={(1-s)^2\over s}\bbp_0+{s^2\over 1-s}\bbp_2\eqno(*)$$
+다.
+
+한편, $\bbp_1$에서의 $C^2$ 연속성 조건을 기술하면,
+$$\eqalign{
+\bbb_2&=s\bbd_1+(1-s)\bbd_0;\cr
+\bbb_4&=q\bbd_1+(1-q)\bbd_2;\quad
+        q={\du1+\du2\over\du0+\du1+\du2}\cr
+\bbp_1&=(1-s)\bbb_2+s\bbb_4\cr
+}$$
+이므로
+$$(1-s)^2\bbd_0+s(1-s+q)\bbd_1+s(1-q)\bbd_2=\bbp_1$$
+이다.  이때, $q=1-sr$이므로 $q$를 소거하면
+$$(1-s)^2\bbd_0+s(2-s-sr)\bbd_1+s^2r\bbd_2=\bbp_1\eqno(**)$$
+이 된다.
+$\bbd_2$ 항을 소거하여 tridiagonal matrix 방정식을 얻기 위해
+식~$(**)$를 $(**)-(*)\times s(1-s)$로 치환하면,
+$$(-3s^2+3s)\bbd_1=-(1-s)^3\bbp_0+\bbp_1-s^3\bbp_2$$
+이다.  곡선의 마지막 부분 두 개의 조각에 대해서도 같은 과정을 통하여 방정식을
+유도할 수 있다.
+
+정리하면 시스템 방정식은
+$$\displaylines{
+\quad\pmatrix{
+  0& -3s_i^2+3s_i& &&&&\cr
+  1-s_i\over s_i& {s_i\over 1-s_i}(1-r_i)-1& s_ir_i\over 1-s_i&&&&\cr
+  &&&\ddots&&&\cr
+  &&&&s_fr_f\over 1-s_f& {s_f\over 1-s_f}(1-r_f)-1& 1-s_f\over s_f\cr
+  &&&&&-3s_f^2+3s_f& 0\cr}
+\pmatrix{
+  \bbd_0\cr\bbd_1\cr\vdots\cr\bbd_{L-1}\cr\bbd_L\cr}\hfill\cr
+\hfill{}=\pmatrix{
+  -(1-s_i)^3\bbp_0+\bbp_1-s_i^3\bbp_2\cr
+  {(1-s_i)^2\over s_i}\bbp_0 + {s_i^2\over 1-s_i}\bbp_2\cr
+  \vdots\cr
+  {s_f^2\over 1-s_f}\bbp_{L-2} + {(1-s_f)^2\over s_f}\bbp_L\cr
+  -s_f^3\bbp_{L-2}+\bbp_{L-1}-(1-s_f)^3\bbp_L\cr}\quad\cr}$$
+이다.  위의 식에서
+$$\eqalign{
+s_i&={\du0\over\du0+\du1}\cr
+r_i&={\du0+\du1\over\du0+\du1+\du2}\cr
+s_f&={\du{L-1}\over\du{L-2}+\du{L-1}}\cr
+r_f&={\du{L-2}+\du{L-1}\over\du{L-3}+\du{L-2}+\du{L-1}}\cr}$$
+이다.
+
+Hermite form과 \bezier\ 컨트롤 포인트 사이의 관계, 그리고 그림에 표시된
+$\bbb_i$와 $\bbd_i$ 사이의 거리 비례 관계로부터
+$$\eqalign{
+\bbd_0&=\bbp_0+{\du0\over3}\bbm_0,\cr
+\bbd_1&={1\over\du0}
+  \left\{(\du0+\du1)\left(\bbp_1-{\du0\over3}\bbm_1\right)
+    -\du1\left(\bbp_0+{\du0\over3}\bbm_0\right)\right\},\cr
+\bbd_2&={1\over\du1}
+  \left\{(\du1+\du2)\left(\bbp_2-{\du1\over3}\bbm_2\right)
+    -\du2\left(\bbp_1+{\du1\over3}\bbm_1\right)\right\}\cr
+}$$
+이다.  따라서 위의 연립방정식에서 $\bbd_0$, $\bbd_1$, $\bbd_2$를
+이 식들로 치환하고 정리하면 곡선의 첫 번째 두 마디에 대한 not-a-knot 종단 조건은
+$$\displaylines{
+\quad\pmatrix{
+  \du0\du1^2&\du0\du1\du{01}&\cr
+  \du0(2\du1-\du2)+2\du1\du{12}\over3\du{012}&
+  \du{01}(\du0(\du1-2\du2)+\du1\du{12})
+  \over3\du1\du{012}&
+  -\du0\du{01}\du{12}\over3\du1\du{012}\cr
+}
+\pmatrix{\bbm_0\cr\bbm_1\cr\bbm_2\cr}\hfill\cr
+\hfill{}=\pmatrix{
+ -\du1^2(3\du0+2\du1)\bbp_0
+  -(\du0-2\du1)\du{01}^2\bbp_1
+  +\du0^3\bbp_2\over\du{01}\cr
+ {-\du1^2(\du0(2\du1-\du2)+2\du1\du{12})\bbp_0
+  +(\du0^2\du1^2+2\du0\du1^3+\du0^3\du2
+    +\du1^3\du{12})\bbp_1
+  -\du0^2\du{01}\du{12}\bbp_2\over
+  \du0\du1^2\du{012}}
+ +{\du1^3\bbp_0+\du0^3\bbp_2\over\du0\du1^2+\du0^2\du1}
+  \cr
+}\quad\cr}$$
+이다.  이 때, $\du{01}=\du0+\du1$, $\du{12}=\du1+\du2$,
+$\du{012}=\du0+\du1+\du2$를 의미한다.
+
+곡선의 반대쪽 끝에서도 같은 방법으로 종단조건 방정식을 유도할 수 있다.
+연관되는 컨트롤 포인트들은
+$$\eqalign{
+\bbd_L&=\bbp_L-{\du{L-1}\over3}\bbm_L,\cr
+\bbd_{L-1}&={1\over\du{L-1}}
+  \left\{(\du{L-2}+\du{L-1})
+    \left(\bbp_{L-1}+{\du{L-1}\over3}\bbm_{L-1}\right)
+    -\du{L-2}\left(\bbp_L-{\du{L-1}\over3}\bbm_L\right)\right\},\cr
+\bbd_{L-2}&={1\over\du{L-2}}
+  \left\{(\du{L-3}+\du{L-2})
+    \left(\bbp_{L-2}+{\du{L-2}\over3}\bbm_{L-2}\right)
+    -\du{L-3}\left(\bbp_{L-1}-{\du{L-2}\over3}\bbm_{L-1}\right)\right\}\cr
+}$$
+이고, 이를 $\bbd_i$에 대하여 기술한 곡선 마지막 부분의 종단조건 방정식에
+대입하면,
+$$\displaylines{
+\quad\pmatrix{
+  \ndu{32}\ndu{1}\ndu{21}\over3\ndu{2}\ndu{321}&
+  -\ndu{21}(\ndu{3}(\ndu{2}-2\ndu{1})+\ndu{2}\ndu{21})
+    \over3\ndu{2}\ndu{321}&
+  \ndu{3}(-2\ndu{2}+\ndu{1})-2\ndu{2}\ndu{21}\over3\ndu{321}\cr
+  &\ndu{2}\ndu{1}\ndu{21}&
+  \ndu{2}^2\ndu{1}\cr
+}
+\pmatrix{\bbm_{L-2}\cr\bbm_{L-1}\cr\bbm_L\cr}\hfill\cr
+\hfill{}=\pmatrix{
+  {-\ndu{32}\ndu{1}^2\ndu{21}\bbp_{L-2}
+  +(\ndu{2}^2\ndu{21}^2+\ndu{3}(\ndu{2}^3+\ndu{1}^3))\bbp_{L-1}
+  -\ndu{2}^2(\ndu{3}(2\ndu{2}-\ndu{1})+2\ndu{2}\ndu{21})\bbp_L
+  \over\ndu{2}^2\ndu{1}\ndu{321}}
+  +{\ndu{1}^3\bbp_{L-2}+\ndu{2}^3\bbp_L\over\ndu{2}^2\ndu{1}+\ndu{2}\ndu{1}^2}\cr
+  -{\ndu{1}^3\bbp_{L-2}+(2\ndu{2}-\ndu{1})\ndu{21}^2\bbp_{L-1}
+    -\ndu{2}^2(2\ndu{2}+3\ndu{1})\bbp_L}\over\ndu{21}\cr
+}\quad\cr}$$
+이다.  위의 식에서 $\ndu{i}=\du{L-i}$를 의미하고, $\ndu{21}=\ndu2+\ndu1$,
+  $\ndu{32}=\ndu3+\ndu2$, $\ndu{321}=\ndu3+\ndu2+\ndu1$이다.
+
+
+{\bf 참고:} Not-a-knot end condition은 최소 4개 이상($3\leq L$)이어야 적용 가능하다.
+왜냐하면, $L=2$인 경우에는 $s_i=\du0/(\du0+\du1)$,
+$s_f=\du1/(\du0+\du1)$, $r_i=r_f=1$이 되어 시스템 방정식은
+$$\pmatrix{0&{3\du0\du1\over(\du0+\du1)^2}&\cr
+  {\du1\over\du0}& -1& {\du0\over\du1}\cr
+  &{3\du0\du1\over(\du0+\du1)^2}&0\cr}
+\pmatrix{\bbd_0\cr\bbd_1\cr\bbd_2\cr}=
+\pmatrix{-{\du1^3\over(\du0+\du1)^3}\bbp_0
+         +\bbp_1-{\du0^3\over(\du0+\du1)^3}\bbp_2\cr
+         {\du1^2\over\du0(\du0+\du1)}\bbp_0
+         +{\du0^2\over\du1(\du0+\du1)}\bbp_2\cr
+         -{\du1^3\over(\du0+\du1)^3}\bbp_0
+         +\bbp_1-{\du0^3\over(\du0+\du1)^3}\bbp_2\cr
+         }$$
+이 되며, 죄측 행렬은 rank가 2에 불과한 underconstrained system을
+의미하기 때문이다.
+}
+
+@<Modify equations according to end conditions and solve them@>=
+switch (cond) {
+  case end_condition::clamped: @/
+    b[0] = 1.0; // First row.
+    c[0] = 0.0;
+    r[0] = m_0;
+
+    a[L-1] = 0.0; // Last row.
+    b[L] = 1.0;
+    r[L] = m_L;
+
+  break;
+
+  case end_condition::bessel: @/
+    b[0] = 1.0;
+    c[0] = 0.0;
+    r[0] = -2*(2*delta(0)+delta(1))/(delta(0)*b[1])*p[0]
+         +b[1]/(2*delta(0)*delta(1))*p[1]
+         -2*delta(0)/(delta(1)*b[1])*p[2];
+
+    a[L-1] = 0.0;
+    b[L] = 1.0;
+    r[L] = 2*delta(L-1)/(delta(L-2)*b[L-1])*p[L-2]
+         -b[L-1]/(2*delta(L-2)*delta(L-1))*p[L-1]
+         +2*(2*delta(L-1)+delta(L-2))/(b[L-1]*delta(L-1))*p[L];
+  break;
+
+  case end_condition::not_a_knot: @/
+  {
+    double d0 = delta(0);
+    double d1 = delta(1);
+    double d2 = delta(2);
+
+    double d01 = d0 + d1;
+    double d12 = d1 + d2;
+
+    double d012 = d0 + d1 + d2;
+
+    b[0] = d0*pow(d1,2);
+    c[0] = d0*d1*d01;
+    r[0] = (p[2]*pow(d0,3) -p[1]*(d0-2*d1)*pow(d01,2)
+         -p[0]*pow(d1,2)*(3*d0+2*d2))/d01;
+
+    a[0] = (d0*(2*d1-d2)+2*d1*d12)/(3*d012);
+    b[1] = (d01)*(d0*(d1-2*d2) +d1*d12) /(3*d1*d012);
+    c[1] = -d0*d01*d12 /(3*d1*d012);
+    r[1] = (-p[2]*pow(d0,2)*d01*d12
+            -p[0]*pow(d1,2)*(d0*(2*d1-d2) +2*d1*d12)
+            +p[1]*(pow(d0*d1,2) +2*d0*pow(d1,3)+pow(d0,3)*d2 +pow(d1,3)*d12))
+         /(d0*pow(d1,2)*d012)
+         +(p[2]*pow(d0,3)+p[0]*pow(d1,3))/(d0*d1*d01);
+
+    d1 = delta(L-1);
+    d2 = delta(L-2);
+    double d3 = delta(L-3);
+
+    d12 = d1 + d2;
+    double d23 = d2 + d3;
+
+    double d123 = d1 + d2 + d3;
+
+    a[L-2] = d23*d1*d12/(3*d2*d123);
+    b[L-1] = -d12*(d3*(d2-2*d1)+d2*d12)/(3*d2*d123);
+    c[L-1] = (d3*(-2*d2+d1)-2*d2*d12)/(3*d123);
+    r[L-1] = (-p[L-2]*d23*pow(d1,2)*d12
+              -p[L]*pow(d2,2)*(d3*(2*d2-d1)+2*d2*d12)
+              +p[L-1]*(pow(d2,2)*pow(d12,2)+d3*(pow(d2,3)+pow(d1,3))))
+             /(pow(d2,2)*d1*d123)
+             +(pow(d2,3)*p[L]+pow(d1,3)*p[L-2])/(d1*d2*d12);
+
+    a[L-1] = d2*d1*d12;
+    b[L] = pow(d2,2)*d1;
+    r[L] = (-p[L-2]*pow(d1,3)-p[L-1]*(2*d2-d1)*pow(d12,2)
+            +p[L]*pow(d2,2)*(2*d2+3*d1))/d12;
+  }
+  break;
+
+  case end_condition::quadratic: @/
+    b[0] = 1.0;
+    c[0] = 1.0;
+    r[0] = 2/delta(0)*(p[1]-p[0]);
+
+    a[L-1] = 1.0;
+    b[L] = 1.0;
+    r[L] = 2/delta(L-1)*(p[L]-p[L-1]);
+  break;
+
+  case end_condition::natural: @/
+     b[0] = 2.0;
+     c[0] = 1.0;
+     r[0] = 3/delta(0)*(p[1]-p[0]);
+
+     a[L-1] = 1.0;
+     b[L] = 2.0;
+     r[L] = 3/delta(L-1)*(p[L]-p[L-1]);
+  break;
+
+default:@/
+  _err = UNKNOWN_END_CONDITION;
+  return;
+}
+solve_hform_tridiagonal_system_set_ctrl_pts (a, b, c, r, p);
+
+@ @<Error codes of |cagd|@>+=
+TRIDIAGONAL_NOT_SOLVABLE, @/
+UNKNOWN_END_CONDITION,
+
+
+
+
+@ Hermite form을 이용한 tridiagonal system 방정식을 풀면
+컨트롤 포인트가 아니라 $\bbm_i$들을 결과로 얻는다.  따라서 Hermite form을
+\bezier\ form을 거쳐 B-spline form으로 변경하여 컨트롤 포인트를 얻는다.
+
+@<Methods for interpolation of |cubic_spline|@>+=
+void
+cubic_spline::solve_hform_tridiagonal_system_set_ctrl_pts (@/
+  @t\idt@>const vector<double>& a,@/
+  @t\idt@>const vector<double>& b,@/
+  @t\idt@>const vector<double>& c,@/
+  @t\idt@>const vector<point>& r,@/
+  @t\idt@>const vector<point>& p@/
+  ) @+ {
+
+  unsigned long L = p.size() - 1;
+  vector<point> m (L+1, point(p[0].dim()));
+
+  if (solve_tridiagonal_system (a, b, c, r, m) != 0) {
+    _err = TRIDIAGONAL_NOT_SOLVABLE;
+    return;
+  }
+
+  vector<point> bp = bezier_points_from_hermite_form (p, m);
+  vector<point> d = control_points_from_bezier_form (bp);
+
+  _ctrl_pts = d;
+}
+
+@ @<Methods of |cubic_spline|@>+=
+protected:@/
+void solve_hform_tridiagonal_system_set_ctrl_pts (@/
+  const vector<double>&,
+  const vector<double>&,
+  const vector<double>&,@/
+  const vector<point>&,
+  const vector<point>&
+);
+
+
+
+
+@ 사람의 보행궤적과 같은 주기적인 운동궤적을 다루기 위해서는 곡선의 시작점과
+끝점이 일치($\bbp_0=\bbp_L$)할 뿐 아니라 그 점에서 2차 미분까지 연속($C^2$
+condition)인 곡선이 필요하다.
+이 마디에서는 Hermite form이 아니라 B-spline의 컨트롤 포인트로부터
+데이터 포인트 $\bbp_i$에서의 $C^2$ 연속성 조건을 기술한다.
 \medskip
 \noindent\centerline{%
 \includegraphics{figs/fig-2.mps}}
@@ -1386,7 +1560,8 @@ $$\eqalign{
 \over \Delta_{i-1}+\Delta_i+\Delta_{i+1}};\quad i=1,\ldots,L-2\cr}
 $$
 이다.
-곡선의 양 끝부분에서는 조금 상황이 다르며
+
+{\it Note: periodic이 아닌 일반 곡선의 양 끝부분에서는 조금 상황이 다르며
 $$\eqalign{
 \bbb_2&={\Delta_1\bbd_0+\Delta_0\bbd_1\over\Delta_0+\Delta_1}\cr
 \bbb_{3L-2}&={\Delta_{L-1}\bbd_{L-1}+\Delta_{L-2}\bbd_L
@@ -1394,7 +1569,8 @@ $$\eqalign{
 \bbb_1&=\bbd_0\cr
 \bbb_{3L-1}&=\bbd_L\cr}$$
 이 된다.  $\bbd_0$와 $\bbd_L$은 end condition에 의하여 결정되거나,
-clamped end condition의 경우에는 임의의 값이 주어진다.
+clamped end condition의 경우에는 임의의 값이 주어진다.}
+
 주어진 데이터 포인트 $\bbp_i$와 미지수인 컨트롤 포인트 $\bbd_i$ 사이의
 관계식을 정리하면,
 $$(\Delta_{i-1}+\Delta_i)\bbp_i=
@@ -1407,245 +1583,9 @@ $$\eqalign{
   +{\Delta_{i-1}(\Delta_i+\Delta_{i+1})\over\Delta_{i-1}+\Delta_i
     +\Delta_{i+1}}\cr
 \gamma_i&={(\Delta_{i-1})^2\over\Delta_{i-1}+\Delta_i+\Delta_{i+1}}\cr}$$
-이다.  이 때, $\Delta_{-1}=\Delta_L=0$이다.
-
-정리하면 cubic spline 보간의 컨트롤 포인트는 방정식
-$$\pmatrix{
-  1&&&&&&\cr
-  \alpha_1&\beta_1&\gamma_1&&&&\cr
-  &&&\ddots&&&\cr
-  &&&&\alpha_{L-1}&\beta_{L-1}&\gamma_{L-1}\cr
-  &&&&&&1\cr}
-\pmatrix{\bbd_0\cr\bbd_1\cr\vdots\cr\bbd_{L-1}\cr\bbd_L\cr}
-=\pmatrix{\bbr_0\cr\bbr_1\cr\vdots\cr\bbr_{L-1}\cr\bbr_L\cr}
-$$
-의 해를 구함으로써 얻을 수 있다.  이 때
-$$\eqalign{
-  \bbr_0&=\bbb_1\cr
-  \bbr_i&=(\Delta_{i-1}+\Delta_i)\bbp_i\cr
-  \bbr_L&=\bbb_{3L-1}\cr}$$
 이다.
 
-@<Setup equations of cubic spline interpolation@>=
-vector<double> a;  // $\alpha$, lower diagonal.
-vector<double> b;  // $\beta$, diagonal.
-vector<double> c;  // $\gamma$, upper diagonal.
-vector<point> r;  // ${\bf r}$, right hand side.
-
-unsigned long L = p.size() - 1;
-
-b.push_back (1.0); // First row.
-c.push_back (0.0);
-r.push_back (initial);
-
-for (size_t i = 1; i != L; i++) {
-  double delta_im2 = delta (i-2);
-  double delta_im1 = delta (i-1);
-  double delta_i = delta (i);
-  double delta_ip1 = delta (i+1);
-
-  double alpha_i = delta_i*delta_i/(delta_im2+delta_im1+delta_i);
-  double beta_i = delta_i*(delta_im2+delta_im1)/(delta_im2+delta_im1+delta_i)
-                 +delta_im1*(delta_i+delta_ip1)/(delta_im1+delta_i+delta_ip1);
-  double gamma_i = delta_im1*delta_im1/(delta_im1+delta_i+delta_ip1);
-
-  a.push_back (alpha_i);
-  b.push_back (beta_i);
-  c.push_back (gamma_i);
-
-  r.push_back ((delta_im1+delta_i)*p[i]);
-}
-
-a.push_back (0.);
-b.push_back (1.);
-r.push_back (end);
-
-
-
-@ 앞에서 설명한 바와 같이 cubic spline 보간은 방정식의 갯수보다
-미지수의 갯수가 2개 많은 under-constrained system이다.  부족한 조건 2개는 곡선
-양 끝단에서 컨트롤 포인트가 만족해야 하는 end condition으로 결정해야하며,
-|cubic_spline| 타입은 clamped, Bessel, quadratic,
-not-a-knot, natural, 그리고 periodic end condition을 지원한다.
-아직은 clamped, not-a-knot, 그리고 periodic end condition만을 구현했다.
-
-@<Modify equations according to end conditions and solve them@>=
-switch (cond) {
-
-  case end_condition::not_a_knot: @+ {
-    @<Modify equations according to not-a-knot end condition@>;
-  }
-
-  case end_condition::clamped: @+ { // No modification required.
-    vector<point> x (L+1, point(p[0].dim()));
-
-    if (solve_tridiagonal_system (a, b, c, r, x) != 0) {
-      _err = TRIDIAGONAL_NOT_SOLVABLE;
-      return;
-    }
-
-    set_control_points (p[0], x, p[L]);
-  }
-  break;
-
-  case end_condition::periodic: @+ {
-    @<Modify equations according to periodic end condition@>;
-
-    vector<point> x (L, point(p[0].dim()));
-
-    if (solve_cyclic_tridiagonal_system (a, b, c, r, x) != 0) {
-      _err = TRIDIAGONAL_NOT_SOLVABLE;
-      return;
-    }
-
-    point d_plus (((delta(0)+delta(1))*x[0] +delta(L-1)*x[1])
-        /(delta(L-1) +delta(0) +delta(1)));
-    point d_minus (((delta(L-2)+delta(L-1))*x[0] +delta(0)*x[L-1])
-        /(delta(L-2) +delta(L-1) +delta(0)));
-
-    vector<point> d (L+1, point(p[0].dim()));
-    d[0] = d_plus;
-    for (size_t i = 1; i != L; i++) {
-      d[i] = x[i];
-    }
-    d[L] = d_minus;
-
-    set_control_points (p[0], d, p[L]);
-  }
-  break;
-
-default:@/
-  _err = UNKNOWN_END_CONDITION;
-  return;
-}
-
-@ @<Error codes of |cagd|@>+=
-TRIDIAGONAL_NOT_SOLVABLE,
-UNKNOWN_END_CONDITION,
-
-
-
-
-@ Not-a-knot end condition은 곡선 양 끝에 놓인 각각 2개의 곡선 조각들이 하나의
-\bezier\ 곡선이 되도록하는 조건이다.  보간해야 하는 데이터 포인트,
-  $\bbp_0,\ldots,\bbp_L$이 있으면, $\bbp_0$과 $\bbp_1$을 연결하는 곡선과
-  $\bbp_1$과 $\bbp_2$를 연결하는 곡선이
-$\bbp_0$과 $\bbp_2$를 연결하는 한 곡선의 subdivision이 되도록 하는 것이다.
-이는 $\bbp_{L-2}$, $\bbp_{L-1}$, $\bbp_L$ 사이에서도 동일하게 주어지는 조건이다.
-아래의 그림은 not-a-knot end condition을 만족하는 곡선의 시작 부분을 보여준다.
-\medskip
-\noindent\centerline{%
-\includegraphics{figs/fig-3.mps}}
-\medskip
-먼저 $\bbp_0$부터 $\bbp_2$까지 하나의 \bezier\ 곡선이 되어야 하는 조건은
-de Casteljau 알고리즘으로부터
-$$\eqalign{
-\bbd_0&=(1-s)\bbp_0+s\bba_-;\quad s={\Delta_0\over\Delta_0+\Delta_1}\cr
-\bbb_5&=(1-s)\bba_++s\bbp_2=(1-r)\bbd_1+r\bbd_2;\quad
-      r={\Delta_0+\Delta_1\over\Delta_0+\Delta_1+\Delta_2}\cr
-\bbd_1&=(1-s)\bba_-+s\bba_+\cr}$$
-이므로
-$$\eqalign{
-\bba_-&={1\over s}\bbd_0-{1-s\over s}\bbp_0\cr
-\bba_+&={1\over 1-s}\left\{(1-r)\bbd_1+r\bbd_2\right\}-{s\over 1-s}\bbp_2\cr}
-$$
-을 세 번째 식에 대입하고 정리하면
-$${1-s\over s}\bbd_0+\left({2s-sr-1\over 1-s}\right)\bbd_1+{sr\over 1-s}\bbd_2
-={(1-s)^2\over s}\bbp_0+{s^2\over 1-s}\bbp_2\eqno(*)$$
-다.
-
-한편, $\bbp_1$에서의 $C^2$ 연속성 조건을 기술하면,
-$$\eqalign{
-\bbb_2&=s\bbd_1+(1-s)\bbd_0;\cr
-\bbb_4&=q\bbd_1+(1-q)\bbd_2;\quad
-        q={\Delta_1+\Delta_2\over\Delta_0+\Delta_1+\Delta_2}\cr
-\bbp_1&=(1-s)\bbb_2+s\bbb_4\cr
-}$$
-이므로
-$$(1-s)^2\bbd_0+s(1-s+q)\bbd_1+s(1-q)\bbd_2=\bbp_1$$
-이다.  이때, $q=1-sr$이므로 $q$를 소거하면
-$$(1-s)^2\bbd_0+s(2-s-sr)\bbd_1+s^2r\bbd_2=\bbp_1\eqno(**)$$
-이 된다.
-$\bbd_2$ 항을 소거하여 tridiagonal matrix 방정식을 얻기 위해
-식~$(**)$를 $(**)-(*)\times s(1-s)$로 치환하면,
-$$(-3s^2+3s)\bbd_1=-(1-s)^3\bbp_0+\bbp_1-s^3\bbp_2$$
-이다.  곡선의 마지막 부분 두 개의 조각에 대해서도 같은 과정을 통하여 방정식을
-유도할 수 있다.
-
-정리하면,
-$$\displaylines{
-\quad\pmatrix{
-  0& -3s_i^2+3s_i& &&&&\cr
-  1-s_i\over s_i& {s_i\over 1-s_i}(1-r_i)-1& s_ir_i\over 1-s_i&&&&\cr
-  &&&\ddots&&&\cr
-  &&&&s_fr_f\over 1-s_f& {s_f\over 1-s_f}(1-r_f)-1& 1-s_f\over s_f\cr
-  &&&&&-3s_f^2+3s_f& 0\cr}
-\pmatrix{
-  \bbd_0\cr\bbd_1\cr\vdots\cr\bbd_{L-1}\cr\bbd_L\cr}\hfill\cr
-\hfill{}=\pmatrix{
-  -(1-s_i)^3\bbp_0+\bbp_1-s_i^3\bbp_2\cr
-  {(1-s_i)^2\over s_i}\bbp_0 + {s_i^2\over 1-s_i}\bbp_2\cr
-  \vdots\cr
-  {s_f^2\over 1-s_f}\bbp_{L-2} + {(1-s_f)^2\over s_f}\bbp_L\cr
-  -s_f^3\bbp_{L-2}+\bbp_{L-1}-(1-s_f)^3\bbp_L\cr}\quad\cr}$$
-이다.  위의 식에서
-$$\eqalign{
-s_i&={\Delta_0\over\Delta_0+\Delta_1}\cr
-r_i&={\Delta_0+\Delta_1\over\Delta_0+\Delta_1+\Delta_2}\cr
-s_f&={\Delta_{L-1}\over\Delta_{L-2}+\Delta_{L-1}}\cr
-r_f&={\Delta_{L-2}+\Delta_{L-1}\over\Delta_{L-3}+\Delta_{L-2}+\Delta_{L-1}}\cr}$$
-이다.
-
-중간 부분은 앞의 cubic spline 보간에 관한 방정식의 $\alpha_i$, $\beta_i$,
-  $\gamma_i$와 $r_i$를 그대로 채워 넣는다.  Not-a-knot end condition은 최소
-  3개 이상($2\leq L$)이어야
-적용 가능하다.  특히 $L=2$인 경우에는 $s_i=\Delta_0/(\Delta_0+\Delta_1)$,
-$s_f=\Delta_1/(\Delta_0+\Delta_1)$, $r_i=r_f=1$이 되어 경계 조건의 방정식은
-$$\pmatrix{0&{3\Delta_0\Delta_1\over(\Delta_0+\Delta_1)^2}&\cr
-  {\Delta_1\over\Delta_0}& -1& {\Delta_0\over\Delta_1}\cr
-  &{3\Delta_0\Delta_1\over(\Delta_0+\Delta_1)^2}&0\cr}
-\pmatrix{\bbd_0\cr\bbd_1\cr\bbd_2}=
-\pmatrix{-{\Delta_1^3\over(\Delta_0+\Delta_1)^3}\bbp_0
-         +\bbp_1-{\Delta_0^3\over(\Delta_0+\Delta_1)^3}\bbp_2\cr
-         {\Delta_1^2\over\Delta_0(\Delta_0+\Delta_1)}\bbp_0
-         +{\Delta_0^2\over\Delta_1(\Delta_0+\Delta_1)}\bbp_2\cr
-         -{\Delta_1^3\over(\Delta_0+\Delta_1)^3}\bbp_0
-         +\bbp_1-{\Delta_0^3\over(\Delta_0+\Delta_1)^3}\bbp_2\cr
-         }$$
-이 된다.
-
-@<Modify equations according to not-a-knot end condition@>=
-if (L >= 2) {
-  double s_i = delta(0)/(delta(0)+delta(1));
-  double r_i = (delta(0)+delta(1))/(delta(0)+delta(1)+delta(2));
-  double s_f = delta(L-1)/(delta(L-2)+delta(L-1));
-  double r_f = (delta(L-2)+delta(L-1))/(delta(L-3)+delta(L-2)+delta(L-1));
-
-  b[0] = 0.; // First row.
-  c[0] = -3*s_i*s_i + 3*s_i;
-  r[0] = -(1-s_i)*(1-s_i)*(1-s_i)*p[0] + p[1] - s_i*s_i*s_i*p[2];
-@#
-  a[0] = (1-s_i)/s_i; // Second row.
-  b[1] = s_i/(1-s_i)*(1-r_i)-1;
-  c[1] = s_i*r_i/(1-s_i);
-  r[1] = (1-s_i)*(1-s_i)/s_i*p[0] + s_i*s_i/(1-s_i)*p[2];
-@#
-  a[L-2] = s_f*r_f/(1-s_f); // Second to the last row.
-  b[L-1] = s_f/(1-s_f)*(1-r_f)-1;
-  c[L-1] = (1-s_f)/s_f;
-  r[L-1] = s_f*s_f/(1-s_f)*p[L-2] + (1-s_f)*(1-s_f)/s_f*p[L];
-@#
-  a[L-1] = -3*s_f*s_f + 3*s_f; // Last row.
-  b[L] = 0.;
-  r[L] = -s_f*s_f*s_f*p[L-2] + p[L-1] - (1-s_f)*(1-s_f)*(1-s_f)*p[L];
-}
-
-
-
-
-@ 사람의 보행궤적과 같은 주기적인 운동궤적을 다루기 위해서는 곡선의 시작점과 
-끝점이 일치($\bbp_0=\bbp_L$)할 뿐 아니라 그 점에서 2차 미분까지 연속($C^2$ 
-    condition)인 곡선이 필요하다.  이 때의 컨트롤 포인트는 방정식
+Periodic cubic spline 곡선의 컨트롤 포인트는 방정식
 $$\pmatrix{
   \beta_0&\gamma_0&&&&&\alpha_0\cr
   \alpha_1&\beta_1&\gamma_1&&&&\cr
@@ -1667,33 +1607,79 @@ $\gamma_{L-1}$, $\bbr_0$는 새로 계산해야한다.
 \noindent\centerline{%
 \includegraphics{figs/fig-4.mps}}
 \medskip
+한 가지 주의할 점은, 위의 방정식의 해가 바로 periodic cubic spline 곡선의 
+컨트롤 포인트는 아니다.  Cubic spline 곡선의 컨트롤 포인트는 곡선의 
+양 끝점을 포함한다.  따라서 위의 그림을 예로 들면 곡선의 컨트롤 포인트는 
+$\bbp_0$, $\bbd_+$, $\bbd_1$, $\bbd_2$, $\bbd_3$, $\bbd_4$,
+$\bbd_-$, $\bbp_5$다.
 
-@<Modify equations according to periodic end condition@>=
-for (size_t i = L-1; i != 0; i--) { // Modify $\alpha$.
-  a[i] = a[i-1];
-}
+@<Setup equations for periodic end condition and solve them@>=
+unsigned long L = p.size() - 1;
+
+vector<double> a(L, 0.0);  // $\alpha$, lower diagonal.
+vector<double> b(L, 0.0);  // $\beta$, diagonal.
+vector<double> c(L, 0.0);  // $\gamma$, upper diagonal.
+vector<point> r(L, p[0].dim());  // ${\bf r}$, right hand side.
+
 a[0] = delta(0)*delta(0)/(delta(L-2)+delta(L-1)+delta(0));
-a[1] = delta(1)*delta(1)/(delta(L-1)+delta(0)+delta(1));
-
-b.pop_back(); // Modify $\beta$.
 b[0] = delta(0)*(delta(L-2)+delta(L-1))/(delta(L-2)+delta(L-1)+delta(0))
   +delta(L-1)*(delta(0)+delta(1))/(delta(L-1)+delta(0)+delta(1));
+c[0] = delta(L-1)*delta(L-1)/(delta(L-1)+delta(0)+delta(1));
+
+for (size_t i = 1; i != L; i++) {
+  double delta_im2 = delta (i-2);
+  double delta_im1 = delta (i-1);
+  double delta_i = delta (i);
+  double delta_ip1 = delta (i+1);
+
+  double alpha_i = delta_i*delta_i/(delta_im2+delta_im1+delta_i);
+  double beta_i = delta_i*(delta_im2+delta_im1)/(delta_im2+delta_im1+delta_i)
+                 +delta_im1*(delta_i+delta_ip1)/(delta_im1+delta_i+delta_ip1);
+  double gamma_i = delta_im1*delta_im1/(delta_im1+delta_i+delta_ip1);
+
+  a[i] = alpha_i;
+  b[i] = beta_i;
+  c[i] = gamma_i;
+
+  r[i] = (delta_im1+delta_i)*p[i];
+}
+
+a[1] = delta(1)*delta(1)/(delta(L-1)+delta(0)+delta(1));
 b[1] = delta(1)*(delta(L-1)+delta(0))/(delta(L-1)+delta(0)+delta(1))
   +delta(0)*(delta(1)+delta(2))/(delta(0)+delta(1)+delta(2));
+
 b[L-1] = delta(L-1)*(delta(L-3)+delta(L-2))/(delta(L-3)+delta(L-2)+delta(L-1))
   +delta(L-2)*(delta(L-1)+delta(0))/(delta(L-2)+delta(L-1)+delta(0));
-
-c[0] = delta(L-1)*delta(L-1)/(delta(L-1)+delta(0)+delta(1)); // Modify $\gamma$.
 c[L-1] = delta(L-2)*delta(L-2)/(delta(L-2)+delta(L-1)+delta(0));
 
-r.pop_back(); // Modify $\bbr$.
 r[0] = (delta(L-1)+delta(0))*p[0];
+
+vector<point> x (L, point(p[0].dim()));
+
+if (solve_cyclic_tridiagonal_system (a, b, c, r, x) != 0) {
+  _err = TRIDIAGONAL_NOT_SOLVABLE;
+  return;
+}
+
+point d_plus (((delta(0)+delta(1))*x[0] +delta(L-1)*x[1])
+      /(delta(L-1) +delta(0) +delta(1)));
+point d_minus (((delta(L-2)+delta(L-1))*x[0] +delta(0)*x[L-1])
+      /(delta(L-2) +delta(L-1) +delta(0)));
+
+vector<point> d (L+1, point(p[0].dim()));
+d[0] = d_plus;
+
+for (size_t i = 1; i != L; i++) {
+  d[i] = x[i];
+}
+d[L] = d_minus;
+
+set_control_points (p[0], d, p[L]);
 
 
 
 
 @ {\bf Test: Cubic Spline Interpolation.}
-
 $x=\pi, \pi+1, \ldots, \pi+10$일 때, $y=\sin(x)+3$으로 주어지는 data point,
 $$y=3.0000, 2.1585, 2.0907, 2.8589, 3.7568, 3.9589,
     3.2794, 2.3430, 2.0106, 2.5879, 3.5440$$
@@ -1708,7 +1694,7 @@ End condition은 not-a-knot을 적용한다.
 print_title ("cubic spline interpolation");
 {
   @<Generate example data points@>;
-  cubic_spline crv (p, 
+  cubic_spline crv (p,
                     cubic_spline::end_condition::not_a_knot,
                     cubic_spline::parametrization::function_spline);
 @#
@@ -1827,7 +1813,6 @@ MATLAB에서 |spline()| 함수를 이용하여 같은 데이터를 cubic spline 
 
 
 @ {\bf Test: Cubic Spline Interpolation (Degenerate Case).}
-
 단 두개의 데이터 포인트에 대한 cubic spline interpolation을 테스트한다.
 $(10,10)$과 $(200,200)$을 연결하는 cubic spline interpolation을 not-a-knot
 end condition으로 구한다.  두 개의 데이터 포인트로는 not-a-knot end condition이
@@ -1856,7 +1841,7 @@ print_title ("cubic spline interpolation: degenerate case");
 
 
 @ {\bf Test: Periodic Cubic Spline Interpolation.}
-
+7개의 경로점
 $$p_i=r(\cos2\pi i/6, \sin2\pi i/6),\quad (i=0,\ldots,6)$$
 을 periodic cubic spline으로 보간한다.
 
@@ -1873,7 +1858,7 @@ print_title ("periodic spline interpolation");
          r*sin(2*M_PI/6*i) +200. << " )" << endl;
   }
 
-  cubic_spline crv (p, cubic_spline::end_condition::periodic, 
+  cubic_spline crv (p, cubic_spline::end_condition::periodic,
                     cubic_spline::parametrization::centripetal);
 @#
   psf file = create_postscript_file ("periodic.ps");
@@ -1908,12 +1893,12 @@ print_title ("periodic spline interpolation");
   cout << "Parallel computation : "
        << duration_cast<milliseconds>(t1-t0).count() << " msec\n";
 
-  double error =0.;
+  double err =0.;
   for (size_t i = 0; i != steps; i++) {
-    error += dist (crv_pts_s[i], crv_pts_p[i]);
+    err += dist (crv_pts_s[i], crv_pts_p[i]);
   }
   cout << "Mean difference between serial and parallel computation = "
-       << error/double(steps) << endl;
+       << err/double(steps) << endl;
 }
 
 @ 실행 결과.
@@ -1927,7 +1912,7 @@ print_title ("periodic spline interpolation");
 @ $C^2$ cubic spline 곡선은 knot에서 나뉘는 각 조각별로 형상이 같은
 \bezier\ 곡선으로 변환할 수 있다.
 
-@<Methods to obtain a |bezier| curve for a segment of |cubic_spline|@>=
+@<Methods for conversion of |cubic_spline|@>+=
 void
 cubic_spline::bezier_control_points (
     vector<point>& bezier_ctrl_points,
@@ -1948,7 +1933,7 @@ cubic_spline::bezier_control_points (
 UNABLE_TO_BREAK_INTO_BEZIER,
 
 
-@ 모든 knot들의 multiplicity가 1이 되도록 한다.  Knot sequence를 따라가며 
+@ 모든 knot들의 multiplicity가 1이 되도록 한다.  Knot sequence를 따라가며
 순증가하는 knot들만 추려낸다.
 
 @<Create a new knot sequence of which each knot has multiplicity of 1@>=
@@ -1970,7 +1955,7 @@ if (knot.size() + 2 != _ctrl_pts.size()) {
 }
 
 
-@ 먼저 필요한 저장공간을 확보한 후, 각 곡선의 segment별로 \bezier\ 컨트롤 
+@ 먼저 필요한 저장공간을 확보한 후, 각 곡선의 segment별로 \bezier\ 컨트롤
 포인트를 계산한다.
 
 @<Calculate \bezier\ control points@>=
@@ -2052,12 +2037,13 @@ vector<point> signed_curvature (int) const;
 
 
 
-@ 먼저 knot insertion을 수행하는 method를 정의한다.
+@*1 Knot Insertion and Removal.
+먼저 knot insertion을 수행하는 method를 정의한다.
 Knot insertion은 새로 삽입된 knot에 의하여 Greville abscissas를 새로 계산하고,
 그에 따라 컨트롤 포인트들을 linear interpolation하는 과정이다.
 
 먼저 삽입할 knot이 적절한 범위의 값인지 점검한다.
-그리고 새로 삽입하는 knot의 영향을 받지 않는 컨트롤 포인트들을 새로운 
+그리고 새로 삽입하는 knot의 영향을 받지 않는 컨트롤 포인트들을 새로운
 저장공간에 복사한다.
 새로 계산해야하는 컨트롤 포인트를 linear interpolation으로 계산하고,
 다시 새로운 knot의 영향을 받지 않는 나머지 컨트롤 포인트들을 복사한다.
@@ -2122,9 +2108,9 @@ void insert_knot (const double);
 
 @<Miscellaneous methods of |cubic_spline|@>+=
 double
-cubic_spline::get_blending_ratio (
-    const vector<double>& IGESKnot,
-    long v, long r, long i
+cubic_spline::get_blending_ratio (@/
+    @t\idt@>const vector<double>& IGESKnot,
+    long v, long r, long i@/
     ) @+ {
 
   long beta = 1; // set beta and determine $m_1$ and $m_2$
@@ -2199,7 +2185,7 @@ double find_l (const vector<double>&, long, long);
 
 
 
-@ Knot removal을 수행하는 method를 정의한다.  
+@ Knot removal을 수행하는 method를 정의한다.
 자세한 알고리즘은 Eck의 논문을 참조한다.
 
 @<Methods for knot insertion and removal of |cubic_spline|@>+=
@@ -2281,18 +2267,16 @@ void remove_knot (const double);
 
 
 
-@ PostScript 파일 출력을 위한 함수들은 다음과 같다.
+@*1 Output to PostScript File.
+PostScript 파일 출력을 위한 함수들은 다음과 같다.
 곡선을 계산할 때 입력받는 변수 |dense|는 곡선을 몇 개의 선분 조각으로 근사화할
 것인지 나타내므로 실제 계산해야 하는 곡선상의 점들은 그것보다 하나 더 많다.
 
 @<Methods for PostScript output of |cubic_spline|@>=
 void
 cubic_spline::write_curve_in_postscript (@/
-  @t\idt@>psf& ps_file,@/
-  @t\idt@>unsigned dense,@/
-  @t\idt@>float line_width,@/
-  @t\idt@>int x, int y,@/
-  @t\idt@>float magnification@/
+  @t\idt@>psf& ps_file, unsigned dense, float line_width, int x, int y,
+  float magnification@/
   @t\idt@>) const @+ {
 
   ios_base::fmtflags previous_options = ps_file.flags ();
@@ -2313,31 +2297,13 @@ cubic_spline::write_curve_in_postscript (@/
     ps_file << pt(x) << "\t" << pt(y) << "\t" << "lineto" << endl;
   }
 
-#if 0
-  for (size_t i = 2; i < _knot_sqnc.size() - 3; i++) {
-    if (_knot_sqnc[i] < _knot_sqnc[i+1]) {
-      double knot = _knot_sqnc[i];
-      double incr = (_knot_sqnc[i+1]-knot)/double(dense);
-      double u = knot;
-      for (size_t j = 0; j <= dense; j++) {
-        pt = magnification*evaluate(u, i);
-	      ps_file << pt(x) << "\t" << pt(y) << "\t" << "lineto" << endl;
-	      u += incr;
-      }
-    }
-  }
-#endif
-
   ps_file << "stroke" << endl;
   ps_file.flags (previous_options);
 }
 
 void
 cubic_spline::write_control_polygon_in_postscript (@/
-  @t\idt@>psf& ps_file,
-  @t\idt@>float line_width,@/
-  @t\idt@>int x, int y,@/
-  @t\idt@>float magnification@/
+  @t\idt@>psf& ps_file, float line_width, int x, int y, float magnification@/
   @t\idt@>) const @+ {
 
   ios_base::fmtflags previous_options = ps_file.flags();
@@ -2361,10 +2327,7 @@ cubic_spline::write_control_polygon_in_postscript (@/
 
 void
 cubic_spline::write_control_points_in_postscript (@/
-  @t\idt@>psf& ps_file,@/
-  @t\idt@>float line_width,@/
-  @t\idt@>int x, int y,@/
-  @t\idt@>float magnification@/
+  @t\idt@>psf& ps_file, float line_width, int x, int y, float magnification@/
   @t\idt@>) const @+ {
 
   ios_base::fmtflags previous_options = ps_file.flags();

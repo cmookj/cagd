@@ -79,25 +79,20 @@ bezier::bezier () @+ {}
 
 bezier::bezier (const bezier& src) @+ {
   _degree = src._degree;
-  _ctrl_pts.clear();
-  for (size_t i = 0; i != src._ctrl_pts.size(); ++i) {
-    _ctrl_pts.push_back (src._ctrl_pts[i]);
-  }
+  _ctrl_pts = src._ctrl_pts;
 }
 
 bezier::bezier (vector<point> points) @+ {
   _degree = points.size() - 1;
-  _ctrl_pts.clear();
-  for (size_t i = 0; i != points.size(); ++i ) {
-    _ctrl_pts.push_back (points[i]);
-  }
+  _ctrl_pts = points;
 }
 
 bezier::bezier (list<point> points) @+ {
   _degree = points.size() - 1;
-  _ctrl_pts.clear();
-  for (list<point>::const_iterator i = points.begin(); i != points.end(); i++) {
-    _ctrl_pts.push_back (*i);
+  _ctrl_pts = vector<point> (points.size(), *points.begin());
+  list<point>::const_iterator iter = points.begin();
+  for (size_t i = 0; iter != points.end(); iter++, i++) {
+    _ctrl_pts[i] = *iter;
   }
 }
 

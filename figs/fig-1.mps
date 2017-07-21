@@ -1,8 +1,8 @@
 %!PS-Adobe-3.0 EPSF-3.0
 %%BoundingBox: 42 -13 303 181 
 %%HiResBoundingBox: 42.8585 -12.25522 302.96854 180.5916 
-%%Creator: MetaPost 1.999
-%%CreationDate: 2016.08.17:1517
+%%Creator: MetaPost 1.9991
+%%CreationDate: 2017.07.12:1432
 %%Pages: 1
 %%DocumentResources: procset mpost-minimal
 %%+ font ORMKKB-CMR10 KNJFED-CMMI10 GJGAYE-CMBX10 QODMIA-CMR7

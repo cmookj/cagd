@@ -1,8 +1,8 @@
 %!PS-Adobe-3.0 EPSF-3.0
 %%BoundingBox: 56 -12 280 243 
 %%HiResBoundingBox: 56.47205 -11.3431 279.995 242.75308 
-%%Creator: MetaPost 1.999
-%%CreationDate: 2016.08.17:1517
+%%Creator: MetaPost 1.9991
+%%CreationDate: 2017.07.12:1432
 %%Pages: 1
 %%DocumentResources: procset mpost-minimal
 %%+ font CHITHI-CMR10 SPJGAV-CMBX10 DVHTIW-CMR7 LREGAV-CMSY7

@@ -1,7 +1,8 @@
-/*128:*/
-#line 394 "./cubicspline.w"
+/*112:*/
+#line 426 "./cubicspline.w"
 
-#define MAX_BUFF_SIZE 30
+#define MAX_BUFFER 30 
+
 kernel void evaluate_crv(
 global float*crv,
 constant float*knots,
@@ -11,7 +12,8 @@ unsigned d,unsigned L,unsigned N
 
 private unsigned id= get_global_id(0);
 private const unsigned n= 3;
-private float tmp[MAX_BUFF_SIZE];
+private const unsigned MAX_D= 6;
+private float tmp[MAX_BUFFER];
 
 private const float du= (knots[L+n-1]-knots[n-1])/(float)(N-1);
 private float u= knots[n-1]+id*du;
@@ -19,7 +21,9 @@ private float u= knots[n-1]+id*du;
 private unsigned I= n-1;
 for(private unsigned i= n;i!=L+n-1;i++){
 I+= (convert_int(sign(u-knots[i]))+1)>>1;
-
+/*
+if(knots[i]<u)I++;
+*/
 }
 
 for(private unsigned i= 0;i!=n+1;i++){
@@ -49,4 +53,4 @@ crv[id*d+j]= tmp[n*d+j];
 
 
 
-/*:128*/
+/*:112*/
