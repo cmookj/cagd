@@ -18,7 +18,6 @@
 \fi
 \catcode`\@@=12
 \input kotexplain
-% \input hangulcweb
 
 % Graphics
 \input graphicx
