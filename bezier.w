@@ -19,7 +19,7 @@ class bezier : public curve {
 
 
 @ |bezier| 타입은 \bezier\ 곡선의 차수를 저장하기 위한 |_degree| 변수와,
-실제 컨트롤 포인트들을 저장하고 위한 |_ctrl_pts| 변수는 |curve| 타입에서 
+실제 컨트롤 포인트들을 저장하고 위한 |_ctrl_pts| 변수는 |curve| 타입에서
 상속받는다.
 
 @<Data members of |bezier|@>=
@@ -39,7 +39,7 @@ protected:@/
 \item{5.} 곡선을 임의의 점에서 분할하는 method;
 \item{5.} 곡선의 차수를 높이거나 낮추기 위한 methods;
 \item{6.} PostScript 파일로 출력하기 위한 methods.
-\enditems 
+\enditems
 
 @<Implementation of |bezier|@>=
 @<Properties of |bezier|@>@;
@@ -54,7 +54,7 @@ protected:@/
 
 
 @ |bezier| 타입의 대표적인 property는 곡선의 차수(degree)와 차원(dimension)이다.
-차원에 대한 것은 |curve| 타입에서 정의했으므로, |bezier| 타입에서 별도로 
+차원에 대한 것은 |curve| 타입에서 정의했으므로, |bezier| 타입에서 별도로
 정의하지는 않는다.
 
 @<Properties of |bezier|@>=
@@ -124,13 +124,10 @@ bezier& bezier::operator= (const bezier& src) @+ {
 public: @/
 bezier& operator= (const bezier&);
 
-@ @<Error codes of |cagd|@>+=
-DEGREE_MISMATCH,
 
 
 
-
-@ \bezier\ 곡선상 각 점의 위치와 속도는 de Casteljau의 recursive linear 
+@ \bezier\ 곡선상 각 점의 위치와 속도는 de Casteljau의 recursive linear
 interpolation algorithm을 이용한다.
 
 @<Evaluation of |bezier|@>=
@@ -178,10 +175,10 @@ point derivative (const double) const;
 곡률을 계산한다.
 먼저 곡률을 계산할 구간을 |density|개의 등간격으로 나누고, 각 지점에서 \bezier\
 곡선의 subdivision을 구한다.
-계산의 수치적 안정성을 위하여 둘로 나뉜 곡선 조각들 중 큰 쪽에서 
+계산의 수치적 안정성을 위하여 둘로 나뉜 곡선 조각들 중 큰 쪽에서
 |curvature_at_zero()|
 함수를 이용하여 곡률을 계산하고 그 결과를 하나의 |vector| 객체에 담아 반환한다.
-|curvature_at_zero()| 함수는 |signed_area()| 함수를 이용하여 부호가 붙은 곡률을 
+|curvature_at_zero()| 함수는 |signed_area()| 함수를 이용하여 부호가 붙은 곡률을
 반환하므로,
 곡선의 전반부에서 계산하는 곡률은 부호를 반대로 뒤집어서 반환함에 유의한다.
 
@@ -258,11 +255,11 @@ $\bbb_i^1(c), (i=0, 1, 2)$이라 하고,
 다시 선분 $\bbb_i^1(c)$-$\bbb_{i+1}^1(c)$를 $c:1-c$로 내분하는 점을
 $\bbb_i^2(c) (i=0, 1)$, 또 선분 $\bbb_i^2(c)$-$\bbb_{i+1}^2(c)$를 $c:1-c$로
 내분하는 점을 $\bbb_i^3(c) (i=0)$이라 하자.
-그러면 파라미터 $[0,c]$ 구간에 해당하는 곡선의 분할에 대한 새로운 컨트롤 
+그러면 파라미터 $[0,c]$ 구간에 해당하는 곡선의 분할에 대한 새로운 컨트롤
 포인트들은
-$\bbc_0=\bbb_0$, $\bbc_1=\bbb_0^1(c)$, $\bbc_2=\bbb_0^2(c)$, 
+$\bbc_0=\bbb_0$, $\bbc_1=\bbb_0^1(c)$, $\bbc_2=\bbb_0^2(c)$,
   $\bbc_c=\bbb_0^3(c)$가 된다.
-$[c,1]$ 구간도 마찬가지로 de Casteljau 알고리즘에 의해 얻어지는 중간 단계의 
+$[c,1]$ 구간도 마찬가지로 de Casteljau 알고리즘에 의해 얻어지는 중간 단계의
 점들이 새로운 컨트롤 포인트가 된다.
 \medskip
 \noindent\centerline{%
@@ -280,9 +277,9 @@ bezier::subdivision (double t, bezier& left, bezier& right) const @+ {
 }
 
 @ 우측, 즉 파라미터 $[c,1]$ 구간에 대한 control polygon을 구한다.
-먼저 control point들을 temporary store에 복사하고, 그 point들에 de Casteljau 
+먼저 control point들을 temporary store에 복사하고, 그 point들에 de Casteljau
 알고리즘을 적용하여 subpolygon의 control point들을 구한다.
-Temporary store들어 있던 결과가 우측 부분 곡선의 control point들이므로 그것들을 
+Temporary store들어 있던 결과가 우측 부분 곡선의 control point들이므로 그것들을
 복사해 온다.
 
 @<Obtain the right subpolygon of \bezier\ curve@>=
@@ -304,8 +301,8 @@ for (size_t r = 1; r != _degree+1; r++) {
 }
 
 @ 왼쪽, 즉 파라미터 $[0,c]$ 구간에 대한 control polygon을 구한다.
-방법은 오른쪽 부분 곡선을 구할때와 마찬가지인데, control point들을 temporary 
-store에 역순으로 복사하고 $t$를 $1-t$로 바꿔 놓은 후 de Casteljau 알고리즘을 
+방법은 오른쪽 부분 곡선을 구할때와 마찬가지인데, control point들을 temporary
+store에 역순으로 복사하고 $t$를 $1-t$로 바꿔 놓은 후 de Casteljau 알고리즘을
 적용한다.
 즉, 곡선과 파라미터를 모두 뒤집어 놓고 같은 과정을 반복하는 것이다.
 
@@ -339,16 +336,16 @@ void subdivision (const double, bezier&, bezier&) const;
 
 
 @ \bezier\ 곡선의 차수를 높이는 method를 구현한다.
-|elevate_degree()|는 \bezier\ 곡선의 차수를 하나 높이며, 여러 차수를 한번에 
-높이려면 recursion을 수행한다.  따라서 method 시작부분에서는 오류처리와 
+|elevate_degree()|는 \bezier\ 곡선의 차수를 하나 높이며, 여러 차수를 한번에
+높이려면 recursion을 수행한다.  따라서 method 시작부분에서는 오류처리와
 종료조건을 점검하며, 그 이후에는 컨트롤 포인트를 하나 추가하는 작업을 한다.
-만약 현재 곡선의 차수보다 낮은 차수로 올리려고 하면 (nonsense!), 객체 내에
-|DEGREE_ELEVATION_FAIL| 오류코드를 저장하고 바로 반환한다.
+만약 현재 곡선의 차수보다 낮은 차수로 올리려고 하면 (nonsense!),
+``degree elevation failure'' 라는 메시지를 갖는 객체를 throw 한다.
 
 @<Degree elevation and reduction of |bezier|@>=
 void bezier::elevate_degree (unsigned long dgr) @+ {
   if (_degree > dgr) {
-    _err = DEGREE_ELEVATION_FAIL;
+    throw std::runtime_error {"degree elevation failure"};
     return;
   }
   if (_degree == dgr) {
@@ -372,13 +369,8 @@ void bezier::elevate_degree (unsigned long dgr) @+ {
 public: @/
 void elevate_degree (unsigned long);
 
-@ @<Error codes of |cagd|@>+=
-DEGREE_ELEVATION_FAIL,
 
-
-
-
-@ 다음에 정의할 함수를 위해 먼저 factorial을 구하는 함수를 |cagd| namespace에 
+@ 다음에 정의할 함수를 위해 먼저 factorial을 구하는 함수를 |cagd| namespace에
 정의한다.
 
 @<Implementation of |cagd| functions@>+=
@@ -426,12 +418,12 @@ $M$ 행렬 주대각의 첫 번째원소와 마지막 원소가 1인 것은 \bez
 낮추더라도 시작점과 끝점은 그대로 유지하기 위함이다.
 
 만약 현재 곡선의 차수보다 높은 차수로 낮추려고 하면 (nonsense!)
-|DEGREE_REDUCTION_FAIL| 오류코드를 남기고 method는 즉시 반환한다.
+``degree reduction failure'' 메시지를 갖는 객체를 throw 한다.
 
 @<Degree elevation and reduction of |bezier|@>+=
 void bezier::reduce_degree (const unsigned long dgr) @+ {
   if (_degree < dgr) {
-    _err = DEGREE_REDUCTION_FAIL;
+    throw std::runtime_error{"degree reduction failure"};
     return;
   }
   if (_degree == dgr) {
@@ -486,14 +478,10 @@ void bezier::reduce_degree (const unsigned long dgr) @+ {
 public: @/
 void reduce_degree (const unsigned long);
 
-@ @<Error codes of |cagd|@>+=
-DEGREE_REDUCTION_FAIL,
-
-
 
 @ \bezier\ curve의 PostScript 출력을 위한 몇 가지 함수들을 정의한다.
 |write_curve_in_postscript()| 함수는 \bezier\ 곡선을 그리기 위한 함수.
-PostScript은 2-차원 평면 용지에 페이지를 기술하는 언어이므로, $n$-차원 공간에 
+PostScript은 2-차원 평면 용지에 페이지를 기술하는 언어이므로, $n$-차원 공간에
 존재하는 \bezier\ 곡선의 몇 번째와 몇 번째 좌표를 그릴 것인지 지정해야 한다.
 만약 아무런 지정이 없으면, 첫 번째와 두 번째 좌표를 출력한다.
 

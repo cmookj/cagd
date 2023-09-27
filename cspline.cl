@@ -1,5 +1,5 @@
-/*128:*/
-#line 394 "./cubicspline.w"
+/*124:*/
+#line 394 "cubicspline.w"
 
 #define MAX_BUFF_SIZE 30
 kernel void evaluate_crv(
@@ -49,4 +49,4 @@ crv[id*d+j]= tmp[n*d+j];
 
 
 
-/*:128*/
+/*:124*/

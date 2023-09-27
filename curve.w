@@ -13,7 +13,6 @@
 class curve {
 protected: @/
   vector<point> _ctrl_pts;
-  mutable cagd::err_code _err;
 
 public: @/
   typedef vector<point>::iterator ctrlpt_itr;
@@ -115,9 +114,6 @@ virtual void write_control_points_in_postscript (@/
   @t\idt@>int x=1, int y=1,@/
   @t\idt@>float magnification = 1.) const =0;
 
-@ @<Error codes of |cagd|@>+=
-OUTPUT_FILE_OPEN_FAIL,
-
 
 
 
@@ -200,7 +196,6 @@ string description () const;
 @<Operators of |curve|@>=
 curve& curve::operator= (const curve& crv) @+ {
   _ctrl_pts = crv._ctrl_pts;
-  _err = crv._err;
 
   return *this;
 }

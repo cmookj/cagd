@@ -12,7 +12,13 @@
 % ---------------------------------------------------------------------------- %
 
 % This document will be typeset in Korean
-\input hangulcweb
+\catcode`\@@=11
+\ifx\@@gobble\undefined
+\long\def\@@gobble#1{}
+\fi
+\catcode`\@@=12
+\input kotexplain
+% \input hangulcweb
 
 % Graphics
 \input graphicx
@@ -162,22 +168,13 @@ PostScript 파일 출력을 위한 method들을 갖는다.
 연산 결과가 0과 유사할 때 0으로 판별하기 위하여 machine epsilon을
 $2.2204\cdot10^{-16}$으로 정의한다.
 
-|cagd| namespace 객체의 method들을 실행하는 도중 오류가 발생할 때에는
-오류의 원인을 설명하고 오류의 종류를 구별할 수 있도록 오류 코드를 객체 내에
-저장한다.
-오류 코드를 정의하기 위하여 enumeration을 정의한다.
-앞으로 다른 타입들과 그 각각의 method들을 정의하면서 그것들과 연관된
-오류 코드들도 추가로 정의할 것이다.
-매우 자명하게도, |NO_ERR|는 method를 성공적으로 수행하고 아무런 오류가 없음을
-의미한다.
-
 점이나 곡선과 같은 기하학적 객체를 다룰 때 실행결과를 가장 쉽게 확인하는 방법은
 그것들을 2차원 지면상에 실제로 그리는 것이다.  또한 그 결과를 편리하게 활용할
 수 있도록 간단한 PostScript 출력을 지원하는 타입과 method들을 구현한다.
 이 프로그램에서는 PostScript 파일을 가리키는 타입으로 |psf|를 정의한다.
 (실제로는 \CPLUSPLUS/의 |ofstream| 타입에 다른 이름을 붙였을 뿐이다.)
 
-OpenCL을 이용한 병렬연산을 수행할 수 있도록 |mpoi.h| 헤더를 추가한다.
+OpenCL을 이용한 병렬연산을 수행할 수 있도록 mpoi.h 헤더를 추가한다.
 
 @s cagd int
 @s point int
@@ -198,6 +195,7 @@ OpenCL을 이용한 병렬연산을 수행할 수 있도록 |mpoi.h| 헤더를 �
 #include <cstdarg>
 #include <algorithm>
 #include <cmath>
+#include <exception>
 #include <iostream>
 #include <ostream>
 #include <fstream>
@@ -221,12 +219,7 @@ using namespace std;
 namespace cagd @+ {
   const double EPS = 2.2204e-16;
   @#
-  enum err_code {
-    @<Error codes of |cagd|@>@;
-    NO_ERR
-  };
-  @#
-  typedef ofstream psf;
+  using psf = ofstream;
   @#
   @<Definition of |point|@>@;
   @<Definition of |curve|@>@;

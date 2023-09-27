@@ -522,19 +522,12 @@ point derivative (const double) const;
 
 
 @ 만약 주어진 인자 $u$가 knot sequence의 범위를 벗어나면,
-|OUT_OF_KNOT_RANGE| 오류코드를 객체에 남기고 모든 원소가 0인 |point| 객체를
-반환한다.  객체의 차원은 컨트롤 포인트의 차원과 동일하다.
+``out of knot range'' 메지시를 담은 객체를 throw 한다.
 
 @<Check the range of knot value given@>=
 if ((u < _knot_sqnc.front()) || (_knot_sqnc.back() < u)) {
-  _err = OUT_OF_KNOT_RANGE;
-  return cagd::point (_ctrl_pts.begin()->dim());
+  throw std::runtime_error{"out of knot range"};
 }
-
-@ @<Error codes of |cagd|@>+=
-OUT_OF_KNOT_RANGE,
-
-
 
 
 @ Knot의 multiplicity를 찾는 method는 재귀적으로 구현한다.
@@ -647,7 +640,7 @@ void set_control_points (const point&, const vector<point>&, const point&);
 
 
 
-@*1 Interpolation of Cubic Spline. 
+@*1 Interpolation of Cubic Spline.
 
 Cubic spline은 \bezier\ 형식과 Hermite 형식이 있다.
 곡선이 지나야 하는 경로점 $\bbx_i$와 그 점에서의 접선벡터 $\bbm_i$, $(i=0,\ldots,L)$이
@@ -822,9 +815,9 @@ $3, 1,\ldots,1,3$을 가정한다.
 \item{1.} 데이터 포인트의 갯수가 0이면 knot sequence와
 control point를 모두 비워버린 후 바로 반환한다.
 \item{2.} 데이터 포인트의 갯수가 2개 이하 (1 또는 2개)면
-trivial solution이다.  Knot sequence는 0,0,0,1,1,1로 설정하고, 
-컨트롤 포인트는 첫 번째 데이터 포인트를 3개, 마지막 데이터 포인트를 3개 
-중첩한다. 
+trivial solution이다.  Knot sequence는 0,0,0,1,1,1로 설정하고,
+컨트롤 포인트는 첫 번째 데이터 포인트를 3개, 마지막 데이터 포인트를 3개
+중첩한다.
 \item{3.} 데이터 포인트의 갯수가 3개 이상이면 주어진
 parametrization scheme따라 knot sequence를 생성하고, $C^2$ cubic spline 보간에
 관한 연립방정식을 세운 후, end condition에 맞춰 식을 일부 조작한다.
@@ -940,7 +933,7 @@ cubic_spline (const vector<point>&, const point, const point,
 @ 먼저 parametrization scheme에 따라 knot sequence를 적절하게 배치해야한다.
 |cubic_spline| 타입은 uniform, chord length, centripetal, function spline
 parametrization을 지원한다.  알려지지 않은 scheme으로 parametrization을 시도하면
-|UNKNOWN_PARAMETRIZATION| 오류 코드를 객체 내에 저장하고 반환한다.
+``unknown parametrization'' 메시지를 담은 객체를 throw한다.
 보통은 chord length parametrization이나 centripetal parametrization을 사용한다.
 
 @<Generate knot sequence according to given parametrization scheme@>=
@@ -966,14 +959,8 @@ switch (scheme) {
   break;
 
 default:@/
-  _err = UNKNOWN_PARAMETRIZATION;
-  return;
+  throw std::runtime_error{"unknown parametrization"};
 }
-
-@ @<Error codes of |cagd|@>+=
-UNKNOWN_PARAMETRIZATION,
-
-
 
 
 @ Uniform parametrization: 등간격으로 knot들을 배치한다.
@@ -1382,7 +1369,7 @@ $$\pmatrix{0&{3\du0\du1\over(\du0+\du1)^2}&\cr
          }$$
 이 되며, 죄측 행렬은 rank가 2에 불과한 underconstrained system을
 의미하기 때문이다.
-}
+
 
 @<Modify equations according to end conditions and solve them@>=
 switch (cond) {
@@ -1482,16 +1469,9 @@ switch (cond) {
   break;
 
 default:@/
-  _err = UNKNOWN_END_CONDITION;
-  return;
+  throw std::runtime_error{"unknown end condition"};
 }
 solve_hform_tridiagonal_system_set_ctrl_pts (a, b, c, r, p);
-
-@ @<Error codes of |cagd|@>+=
-TRIDIAGONAL_NOT_SOLVABLE, @/
-UNKNOWN_END_CONDITION,
-
-
 
 
 @ Hermite form을 이용한 tridiagonal system 방정식을 풀면
@@ -1512,8 +1492,7 @@ cubic_spline::solve_hform_tridiagonal_system_set_ctrl_pts (@/
   vector<point> m (L+1, point(p[0].dim()));
 
   if (solve_tridiagonal_system (a, b, c, r, m) != 0) {
-    _err = TRIDIAGONAL_NOT_SOLVABLE;
-    return;
+    throw std::runtime_error{"tridiagonal system not solvable"};
   }
 
   vector<point> bp = bezier_points_from_hermite_form (p, m);
@@ -1607,9 +1586,9 @@ $\gamma_{L-1}$, $\bbr_0$는 새로 계산해야한다.
 \noindent\centerline{%
 \includegraphics{figs/fig-4.mps}}
 \medskip
-한 가지 주의할 점은, 위의 방정식의 해가 바로 periodic cubic spline 곡선의 
-컨트롤 포인트는 아니다.  Cubic spline 곡선의 컨트롤 포인트는 곡선의 
-양 끝점을 포함한다.  따라서 위의 그림을 예로 들면 곡선의 컨트롤 포인트는 
+한 가지 주의할 점은, 위의 방정식의 해가 바로 periodic cubic spline 곡선의
+컨트롤 포인트는 아니다.  Cubic spline 곡선의 컨트롤 포인트는 곡선의
+양 끝점을 포함한다.  따라서 위의 그림을 예로 들면 곡선의 컨트롤 포인트는
 $\bbp_0$, $\bbd_+$, $\bbd_1$, $\bbd_2$, $\bbd_3$, $\bbd_4$,
 $\bbd_-$, $\bbp_5$다.
 
@@ -1657,8 +1636,7 @@ r[0] = (delta(L-1)+delta(0))*p[0];
 vector<point> x (L, point(p[0].dim()));
 
 if (solve_cyclic_tridiagonal_system (a, b, c, r, x) != 0) {
-  _err = TRIDIAGONAL_NOT_SOLVABLE;
-  return;
+  throw std::runtime_error{"tirdiagonal system not solvable"};
 }
 
 point d_plus (((delta(0)+delta(1))*x[0] +delta(L-1)*x[1])
@@ -1925,12 +1903,7 @@ cubic_spline::bezier_control_points (
   @<Create a new knot sequence of which each knot has multiplicity of 1@>;
   @<Check whether the curve can be broken into \bezier\ curves@>;
   @<Calculate \bezier\ control points@>;
-
-
 }
-
-@ @<Error codes of |cagd|@>+=
-UNABLE_TO_BREAK_INTO_BEZIER,
 
 
 @ 모든 knot들의 multiplicity가 1이 되도록 한다.  Knot sequence를 따라가며
@@ -1950,8 +1923,7 @@ for (size_t i = 1; i != _knot_sqnc.size(); i++) {
 
 @<Check whether the curve can be broken into \bezier\ curves@>=
 if (knot.size() + 2 != _ctrl_pts.size()) {
-  _err = UNABLE_TO_BREAK_INTO_BEZIER;
-  return;
+  throw std::runtime_error{"unable to break into bezier curves"};
 }
 
 
@@ -2058,10 +2030,10 @@ cubic_spline::insert_knot (const double u) @+ {
   @#
   size_t index = find_index_in_knot_sequence (u);
   if (index == SIZE_MAX) {
-    _err = OUT_OF_KNOT_RANGE;
+    throw std::runtime_error{"out of knot range"};
   }
   if ((index < n-1) || (int(_knot_sqnc.size())-n < index)) {
-    _err = NOT_INSERTABLE_KNOT;
+    throw std::runtime_error{"not insertable knot"};
   }
 
   vector<point> new_ctrl_pts; // construct a new control points
@@ -2074,9 +2046,6 @@ cubic_spline::insert_knot (const double u) @+ {
   _ctrl_pts.clear ();
   _ctrl_pts = new_ctrl_pts;
 }
-
-@ @<Error codes of |cagd|@>+=
-NOT_INSERTABLE_KNOT,
 
 @ @<Copy control points for $i = 0, \ldots ,I-d+1$@>=
 for (size_t i = 0; i <= index-n+1; i++) {
