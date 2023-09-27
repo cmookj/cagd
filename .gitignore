@@ -3,3 +3,8 @@ test
 test_linux 
 cagd_test
 tags
+cagd.h 
+cagd.c 
+cagd.cpp 
+test.cpp 
+cspline.cl 
